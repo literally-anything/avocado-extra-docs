@@ -1,0 +1,5 @@
+# expect: repos/x
+repos:
+  x:
+    url: https://a.example
+    path: ./rpms

@@ -1,0 +1,4 @@
+# expect: board
+runtimes:
+  dev:
+    board: qemuarm64

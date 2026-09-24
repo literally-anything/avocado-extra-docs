@@ -1,0 +1,5 @@
+# expect: enable_service
+extensions:
+  app:
+    version: "1.0"
+    enable_service: [app.service]

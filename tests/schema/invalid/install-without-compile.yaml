@@ -1,0 +1,6 @@
+# expect: packages/app
+extensions:
+  app:
+    version: "1.0"
+    packages:
+      app: { install: app-install.sh }

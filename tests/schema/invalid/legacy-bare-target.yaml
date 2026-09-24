@@ -1,0 +1,6 @@
+# expect: qemuarm64
+runtimes:
+  dev:
+    extensions: [app]
+    qemuarm64:
+      extensions: [app]

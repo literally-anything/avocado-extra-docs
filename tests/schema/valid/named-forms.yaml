@@ -1,0 +1,50 @@
+# Named kernel/rootfs maps, extra feeds, var layout, dependencies, version-from-file.
+default_target: qemuarm64
+distro:
+  release: 2026
+  channel: edge
+  feeds: [distro, private]
+repos:
+  private:
+    url: https://feed.example.com/$releasever/target/$target
+    release: 2026
+    channel: edge
+    username: '{{ env.FEED_USER }}'
+    password: '{{ env.FEED_TOKEN }}'
+    targets: [qemuarm64]
+kernel:
+  lts: { package: kernel-image, version: '>= 6.12' }
+  stable: { package: kernel-image, version: '6.6.*' }
+rootfs:
+  base: { packages: { avocado-pkg-rootfs: '*' }, filesystem: erofs-zst }
+runtimes:
+  prod:
+    kernel: lts
+    rootfs: base
+    version: '1.2.0'
+    extensions: [platform, app]
+    var:
+      compression: zstd
+      subvolumes:
+        lib/app: { quota: 5G, nodatacow: true }
+        cache: true
+      encrypt: true
+      hardware: auto
+    signing: { key: prod-root, checksum_algorithm: sha256 }
+    docker_images: [{ image: redis, tag: '7' }]
+extensions:
+  platform:
+    version: { file: VERSION }
+    class: platform
+    packages: { weston: '*' }
+  app:
+    version: { file: Cargo.toml, key: package.version }
+    depends_on:
+      - platform
+      - { name: gfx-core, version: '>=1.2.0' }
+    image: { type: raw, verity: true }
+    kernel-6.6.*:
+      packages: { kernel-module-foo: '*' }
+signing_keys:
+  - prod-root: sha256-abc123
+connect: { org: my-org, project: my-project }

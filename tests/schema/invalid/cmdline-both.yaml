@@ -1,0 +1,4 @@
+# expect: kernel
+kernel:
+  cmdline: "quiet"
+  cmdline_extra: "debug"

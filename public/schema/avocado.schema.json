@@ -1,0 +1,1367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://literally-anything.github.io/avocado-extra-docs/schema/avocado.schema.json",
+  "title": "avocado.yaml (unofficial, source-verified)",
+  "description": "Schema for avocado.yaml, derived from the avocado-cli 1.0.0-rc.5 source. Stricter than the CLI on purpose: the CLI silently ignores unknown keys, this schema reports them. See https://literally-anything.github.io/avocado-extra-docs/reference/config-schema/",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "cli_requirement": {
+      "type": "string",
+      "description": "Semver requirement the running CLI must satisfy. Pre-release tags are stripped before comparing, so 1.0.0-rc.5 satisfies >=1.0.0."
+    },
+    "source_date_epoch": {
+      "type": "integer",
+      "description": "Fixed timestamp for reproducible images."
+    },
+    "default_target": {
+      "type": "string",
+      "description": "Target used when neither --target nor AVOCADO_TARGET is given."
+    },
+    "default_target_board": {
+      "type": "string",
+      "description": "Lowest-priority source for {{ avocado.target.board }}."
+    },
+    "supported_targets": {
+      "description": "'*' or a list of target names.",
+      "oneOf": [
+        {
+          "const": "*"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "default_runtime": {
+      "type": "string",
+      "description": "Runtime used when neither -r nor AVOCADO_RUNTIME is given. Also the runtime templating resolves against."
+    },
+    "src_dir": {
+      "type": "string",
+      "description": "Root for relative paths; mounted at /opt/src in the SDK container. Defaults to the config file's directory."
+    },
+    "distro": {
+      "$ref": "#/$defs/distro"
+    },
+    "repos": {
+      "type": "object",
+      "description": "Named package feeds. Enabled only when listed in distro.feeds.",
+      "additionalProperties": {
+        "$ref": "#/$defs/repo"
+      }
+    },
+    "sdk": {
+      "$ref": "#/$defs/sdk"
+    },
+    "kernel": {
+      "$ref": "#/$defs/namedOrSingleKernel"
+    },
+    "rootfs": {
+      "$ref": "#/$defs/namedOrSingleImage"
+    },
+    "initramfs": {
+      "$ref": "#/$defs/namedOrSingleImage"
+    },
+    "permissions": {
+      "$ref": "#/$defs/namedOrSinglePermissions"
+    },
+    "runtimes": {
+      "$ref": "#/$defs/runtimes"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtimes",
+      "description": "Alias of runtimes."
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Extensions by name. Names may contain templates, e.g. avocado-bsp-{{ avocado.target.board }}.",
+      "additionalProperties": {
+        "$ref": "#/$defs/extension"
+      }
+    },
+    "provision_profiles": {
+      "$ref": "#/$defs/provisionProfiles"
+    },
+    "provision": {
+      "$ref": "#/$defs/provisionProfiles",
+      "description": "Alias of provision_profiles."
+    },
+    "signing_keys": {
+      "type": "array",
+      "description": "List of single-key maps: friendly name -> key id in the signing-key registry.",
+      "items": {
+        "type": "object",
+        "minProperties": 1,
+        "maxProperties": 1,
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    },
+    "connect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "org": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "server_key": {
+          "type": "string",
+          "description": "Connect server TUF public key (hex) for all runtimes."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overrideKeys": {
+      "description": "target-<name>: and kernel-<spec>: override blocks. Non-matching ones are dropped silently.",
+      "type": "object"
+    },
+    "packageMap": {
+      "type": "object",
+      "description": "Package name -> version spec. {{ avocado.kernel.version }} is substituted in keys after kernel resolution.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "'*' or a version."
+          },
+          {
+            "type": "number",
+            "description": "A bare number is accepted but should be quoted."
+          },
+          {
+            "type": "object",
+            "description": "Explicit version.",
+            "required": [
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "SDK-compiled package: built by sdk.compile.<compile>, staged by the install script. Extensions only. In 1.0.0-rc.5 an install script without compile is never run by the build.",
+            "required": [
+              "compile",
+              "install"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "compile": {
+                "type": "string"
+              },
+              "install": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Legacy extension dependency. Logged, not installed; use depends_on.",
+            "required": [
+              "extensions"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "extensions": {
+                "type": "string"
+              },
+              "vsn": {
+                "type": "string"
+              },
+              "config": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "overlay": {
+      "description": "Directory copied over the sysroot. Never deletes files in either mode.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dir": {
+              "type": "string",
+              "description": "Defaults to 'overlay'."
+            },
+            "mode": {
+              "enum": [
+                "merge",
+                "opaque"
+              ],
+              "description": "merge = cp -a, opaque = cp -r. Neither removes existing files."
+            },
+            "preprocess": {
+              "description": "Run {{ }} templating over overlay files: true for all UTF-8 files, or a list of globs. Local overlays only.",
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "imageWrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "raw",
+            "kab"
+          ],
+          "description": "kab wraps the image with kabtool; raw (default) keeps it as-is."
+        },
+        "args": {
+          "type": "string",
+          "description": "Arguments passed to kabtool."
+        },
+        "verity": {
+          "type": "boolean",
+          "description": "dm-verity protect the image. Must be a real boolean."
+        }
+      }
+    },
+    "distro": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "release": {
+          "type": [
+            "string",
+            "integer"
+          ],
+          "description": "Feed year: 2024 (scarthgap) or 2026 (wrynose)."
+        },
+        "version": {
+          "type": [
+            "string",
+            "integer"
+          ],
+          "description": "Alias of release."
+        },
+        "channel": {
+          "type": "string",
+          "description": "next, edge or stable."
+        },
+        "repo": {
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Name of a repos entry."
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "Base URL, without $releasever or $target."
+                },
+                "releasever": {
+                  "type": "string"
+                },
+                "ca": {
+                  "type": "string"
+                },
+                "tls_verify": {
+                  "type": "boolean"
+                }
+              }
+            }
+          ]
+        },
+        "feeds": {
+          "$ref": "#/$defs/stringList",
+          "description": "Enabled feeds, highest priority first."
+        }
+      }
+    },
+    "repo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "org": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "release": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "channel": {
+          "type": "string"
+        },
+        "releasever": {
+          "type": "string"
+        },
+        "gpgkey": {
+          "type": "string"
+        },
+        "gpgcheck": {
+          "type": "boolean"
+        },
+        "targets": {
+          "$ref": "#/$defs/stringList"
+        },
+        "stages": {
+          "$ref": "#/$defs/stringList"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "ca": {
+          "type": "string"
+        },
+        "tls_verify": {
+          "type": "boolean"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "url"
+          ]
+        },
+        {
+          "required": [
+            "org"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        }
+      ]
+    },
+    "containerArgs": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "SDK container image. sdk:2024 is a moving tag."
+        },
+        "packages": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "compile": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/compileSection"
+          }
+        },
+        "repo_url": {
+          "type": "string",
+          "description": "Legacy; use distro.repo.url."
+        },
+        "repo_release": {
+          "type": "string",
+          "description": "Legacy; use distro.repo.releasever."
+        },
+        "container_args": {
+          "$ref": "#/$defs/containerArgs"
+        },
+        "disable_weak_dependencies": {
+          "type": "boolean"
+        },
+        "host_uid": {
+          "type": "integer"
+        },
+        "host_gid": {
+          "type": "integer"
+        }
+      }
+    },
+    "compileSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compile": {
+          "type": "string"
+        },
+        "clean": {
+          "type": "string"
+        },
+        "packages": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "package": {
+          "type": "object",
+          "required": [
+            "install",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "install": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "release": {
+              "type": "string"
+            },
+            "license": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "vendor": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "arch": {
+              "type": "string"
+            },
+            "requires": {
+              "$ref": "#/$defs/stringList"
+            },
+            "files": {
+              "$ref": "#/$defs/stringList"
+            },
+            "split": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "files"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "summary": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "requires": {
+                    "$ref": "#/$defs/stringList"
+                  },
+                  "files": {
+                    "$ref": "#/$defs/stringList"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "kernel": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(target|kernel)-": {
+          "$ref": "#/$defs/overrideKeys"
+        }
+      },
+      "properties": {
+        "package": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "description": "6.6.*, '>= 6.6', or an exact version."
+        },
+        "compile": {
+          "type": "string"
+        },
+        "install": {
+          "type": "string"
+        },
+        "image": {
+          "$ref": "#/$defs/imageWrap"
+        },
+        "cmdline": {
+          "type": "string",
+          "description": "Replaces the platform command line. Exclusive with cmdline_extra."
+        },
+        "cmdline_extra": {
+          "type": "string",
+          "description": "Appended to the platform command line."
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "package",
+              "compile"
+            ]
+          },
+          {
+            "required": [
+              "cmdline",
+              "cmdline_extra"
+            ]
+          }
+        ]
+      }
+    },
+    "namedOrSingleKernel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/kernel"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/kernel"
+          }
+        }
+      ]
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^target-": {
+          "$ref": "#/$defs/overrideKeys"
+        }
+      },
+      "properties": {
+        "packages": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "filesystem": {
+          "enum": [
+            "erofs-lz4",
+            "erofs-zst",
+            "erofs",
+            "cpio",
+            "cpio.zst",
+            "cpio.lz4",
+            "cpio.gz"
+          ],
+          "description": "rootfs: erofs-lz4 (default) or erofs-zst. initramfs: cpio.zst (default), cpio, cpio.lz4, cpio.gz."
+        },
+        "overlay": {
+          "$ref": "#/$defs/overlay"
+        },
+        "post_install": {
+          "type": "string",
+          "description": "Replaces ALL default post-install steps (usrmerge symlinks, empty machine-id, preset-all, ldconfig)."
+        },
+        "permissions": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/permissions"
+            }
+          ]
+        },
+        "image": {
+          "$ref": "#/$defs/imageWrap"
+        }
+      }
+    },
+    "namedOrSingleImage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/image"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/image"
+          }
+        }
+      ]
+    },
+    "user": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "password": {
+          "type": "string",
+          "description": "'*' locks (default), '' = NO password, otherwise a crypt(3) hash written verbatim."
+        },
+        "uid": {
+          "type": "integer"
+        },
+        "gid": {
+          "type": "integer"
+        },
+        "gecos": {
+          "type": "string"
+        },
+        "home": {
+          "type": "string"
+        },
+        "shell": {
+          "type": "string"
+        },
+        "groups": {
+          "$ref": "#/$defs/stringList"
+        },
+        "system": {
+          "type": "boolean"
+        },
+        "last_change": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "min_days": {
+          "type": "integer"
+        },
+        "max_days": {
+          "type": "integer"
+        },
+        "warn_days": {
+          "type": "integer"
+        },
+        "inactive_days": {
+          "type": "integer"
+        },
+        "expire_date": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gid": {
+          "type": "integer"
+        },
+        "members": {
+          "$ref": "#/$defs/stringList"
+        },
+        "password": {
+          "type": "string"
+        },
+        "system": {
+          "type": "boolean"
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "users": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/user"
+          }
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/group"
+          }
+        }
+      }
+    },
+    "namedOrSinglePermissions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/permissions"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/permissions"
+          }
+        }
+      ]
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "checksum_algorithm": {
+          "enum": [
+            "sha256",
+            "blake3"
+          ]
+        },
+        "content_key": {
+          "type": "string"
+        },
+        "server_key": {
+          "type": "string"
+        },
+        "fit_key": {
+          "type": "string"
+        },
+        "fit_unsigned": {
+          "type": "boolean"
+        },
+        "fit_key_in_bootloader": {
+          "type": "boolean"
+        }
+      },
+      "not": {
+        "required": [
+          "fit_key",
+          "fit_unsigned"
+        ]
+      }
+    },
+    "subvolume": {
+      "oneOf": [
+        {
+          "type": "boolean",
+          "description": "true = writable with defaults, false = disabled."
+        },
+        {
+          "type": "string",
+          "description": "'ro' = read-only with defaults."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "writable": {
+              "type": "boolean"
+            },
+            "compression": {
+              "type": "string"
+            },
+            "nodatacow": {
+              "type": "boolean"
+            },
+            "quota": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "var": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compression": {
+          "type": "string"
+        },
+        "subvolumes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/subvolume"
+          }
+        },
+        "encrypt": {
+          "type": "boolean"
+        },
+        "recovery": {
+          "type": "string"
+        },
+        "hardware": {
+          "enum": [
+            "auto",
+            "caam",
+            "tpm2",
+            "none"
+          ]
+        }
+      }
+    },
+    "dockerImage": {
+      "type": "object",
+      "required": [
+        "image",
+        "tag"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        }
+      }
+    },
+    "runtimeExtensionEntry": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^target-": {
+          "$ref": "#/$defs/overrideKeys"
+        }
+      },
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "description": "Earlier entries win file conflicts.",
+          "items": {
+            "$ref": "#/$defs/runtimeExtensionEntry"
+          }
+        },
+        "packages": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "target": {
+          "type": "string"
+        },
+        "targets": {
+          "$ref": "#/$defs/stringList"
+        },
+        "target_board": {
+          "type": "string",
+          "description": "Feeds {{ avocado.target.board }} only when this runtime is resolved via AVOCADO_RUNTIME, default_runtime, or as the sole runtime (not via -r). There is no 'board' key."
+        },
+        "version": {
+          "type": "string"
+        },
+        "kernel": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/kernel"
+            }
+          ]
+        },
+        "rootfs": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/image"
+            }
+          ]
+        },
+        "initramfs": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/image"
+            }
+          ]
+        },
+        "signing": {
+          "$ref": "#/$defs/signing"
+        },
+        "var": {
+          "$ref": "#/$defs/var"
+        },
+        "var_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "dest"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "dest": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "docker_images": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dockerImage"
+          }
+        },
+        "post_build": {
+          "type": "string"
+        },
+        "stone_include_paths": {
+          "$ref": "#/$defs/stringList"
+        },
+        "stone_manifest": {
+          "type": "string"
+        },
+        "container_dev": {
+          "type": "object"
+        }
+      }
+    },
+    "runtimes": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/runtime"
+      }
+    },
+    "extensionSource": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "package",
+                "repo"
+              ]
+            },
+            "version": {
+              "type": "string"
+            },
+            "package": {
+              "type": "string"
+            },
+            "repo_name": {
+              "type": "string"
+            },
+            "include": {
+              "$ref": "#/$defs/stringList"
+            }
+          },
+          "required": [
+            "type",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "git"
+            },
+            "url": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "sparse_checkout": {
+              "$ref": "#/$defs/stringList"
+            },
+            "include": {
+              "$ref": "#/$defs/stringList"
+            }
+          },
+          "required": [
+            "type",
+            "url"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "path"
+            },
+            "path": {
+              "type": "string"
+            },
+            "include": {
+              "$ref": "#/$defs/stringList"
+            }
+          },
+          "required": [
+            "type",
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(target|kernel)-": {
+          "$ref": "#/$defs/overrideKeys"
+        }
+      },
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/extensionSource"
+        },
+        "version": {
+          "description": "Quote it: version: 1.10 becomes \"1\". Or read it from a file in the extension tree.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "object",
+              "required": [
+                "file"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "file": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "format": {
+                  "enum": [
+                    "toml",
+                    "json",
+                    "yaml"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "sysext",
+              "confext"
+            ]
+          },
+          "description": "Default [sysext, confext]. enable_services needs confext."
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "initrd",
+              "system"
+            ]
+          },
+          "description": "Default [system]."
+        },
+        "sysext_scopes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "initrd",
+              "system"
+            ]
+          }
+        },
+        "confext_scopes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "initrd",
+              "system"
+            ]
+          }
+        },
+        "packages": {
+          "$ref": "#/$defs/packageMap"
+        },
+        "sdk": {
+          "type": "object",
+          "description": "SDK-side needs of this extension. sdk.packages are merged into the SDK install (e.g. nativesdk-* tools).",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^target-": {
+              "$ref": "#/$defs/overrideKeys"
+            }
+          },
+          "properties": {
+            "packages": {
+              "$ref": "#/$defs/packageMap"
+            },
+            "dependencies": {
+              "$ref": "#/$defs/packageMap"
+            }
+          }
+        },
+        "overlay": {
+          "$ref": "#/$defs/overlay"
+        },
+        "enable_services": {
+          "$ref": "#/$defs/stringList",
+          "description": "Removing an entry does not remove its wants symlink from an existing sysroot."
+        },
+        "modprobe": {
+          "$ref": "#/$defs/stringList",
+          "description": "Loaded on every merge; failures only warn."
+        },
+        "on_merge": {
+          "$ref": "#/$defs/stringList",
+          "description": "No shell: split on ';' then whitespace. A missing program fails the whole merge."
+        },
+        "on_unmerge": {
+          "$ref": "#/$defs/stringList"
+        },
+        "reload_service_manager": {
+          "type": "boolean"
+        },
+        "post_build": {
+          "type": "string"
+        },
+        "package_files": {
+          "$ref": "#/$defs/stringList"
+        },
+        "stone_include_paths": {
+          "$ref": "#/$defs/stringList"
+        },
+        "filesystem": {
+          "enum": [
+            "erofs",
+            "erofs-lz4",
+            "erofs-zst",
+            "squashfs"
+          ]
+        },
+        "image": {
+          "$ref": "#/$defs/imageWrap"
+        },
+        "var_files": {
+          "$ref": "#/$defs/stringList"
+        },
+        "subvolumes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/subvolume"
+          }
+        },
+        "docker_images": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dockerImage"
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 1,
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "class": {
+          "enum": [
+            "application",
+            "platform"
+          ]
+        },
+        "device_tree_overlays": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "src"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]+$"
+              },
+              "src": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "summary": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "users": {
+          "type": "object",
+          "deprecated": true,
+          "description": "Deprecated: use top-level permissions."
+        },
+        "groups": {
+          "type": "object",
+          "deprecated": true,
+          "description": "Deprecated: use top-level permissions."
+        }
+      }
+    },
+    "provisionProfiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "container_args": {
+            "$ref": "#/$defs/containerArgs"
+          },
+          "state_file": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
