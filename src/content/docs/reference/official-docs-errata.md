@@ -53,6 +53,9 @@ See the [complete schema](../config-schema/) on this site.
 **`ext_deps.rs` says "no command calls them yet".**
 **Actually:** `depends_on` is read by config composition and by the stamp code in `1.0.0-rc.5`. That comment is stale; the feature is only partly wired up.
 
+**The Tegra `device-tree-overlay-deliver` hook** (meta-avocado `scarthgap`, `recipes-avocado/avocado-dtc-overlay-deliver/`) says `initrd-flash.sh` never reads the overlay lists in `flashvars` (`OVERLAY_DTB_FILE`, `BOOTCONTROL_OVERLAYS`, `PLUGIN_MANAGER_OVERLAYS`).
+**Actually:** in the `jetson-orin-nx` flash BSP of 2024/edge snapshot 17, `initrd-flash` runs `tegra-flash-helper.sh --sign`, which sources `flashvars` and applies `BOOTCONTROL_OVERLAYS` and `OVERLAY_DTB_FILE` ([details](../../hardware/jetson-carrier-boards/#how-a-carrier-is-layered)).
+
 ## Not documented anywhere official
 
 These aren't errors, just gaps, and each has a page here:

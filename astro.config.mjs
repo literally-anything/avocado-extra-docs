@@ -73,7 +73,10 @@ export default defineConfig({
 				},
 				{
 					label: 'Hardware notes',
-					items: [{ label: 'NVIDIA Jetson Orin', slug: 'hardware/jetson-orin' }],
+					items: [
+						{ label: 'NVIDIA Jetson Orin', slug: 'hardware/jetson-orin' },
+						{ label: 'Jetson carrier boards', slug: 'hardware/jetson-carrier-boards' },
+					],
 				},
 				{
 					label: 'Reference',

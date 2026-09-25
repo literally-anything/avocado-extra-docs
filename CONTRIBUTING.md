@@ -37,7 +37,7 @@ Roughly in order of how much they'd help.
 
 **Platform and boot**
 - [ ] **Stone and provisioning internals:** profiles, `state_file`, the stone manifest, how `carrier-bsp/` and `stone_include_paths` are searched
-- [ ] **Custom carrier boards:** a practical guide to `meta-avocado-nvidia/docs/adding-a-jetson-carrier.md` for Orin NX and Nano carriers (device tree, pinmux, USB device port, boot media)
+- [x] **Custom carrier boards:** a practical guide to `meta-avocado-nvidia/docs/adding-a-jetson-carrier.md` for Orin NX and Nano carriers (device tree, pinmux, USB device port, boot media)
 - [ ] **Kernel customization:** compile mode, and how `cmdline`/`cmdline_extra` reach each platform's boot hook
 - [ ] **Device tree overlays** in practice, per platform
 

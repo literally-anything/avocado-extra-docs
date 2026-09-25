@@ -14,7 +14,7 @@ Boot order, quick boot and the boot menu timeout come from UEFI variables set in
 Things that were verified in a real flash bundle:
 
 - The flash applies overlays in this order: `BOOTCONTROL_OVERLAYS="L4TConfiguration.dtbo,L4TConfiguration-RootfsRedundancyLevelABEnable.dtbo"`. Yours is applied **first**, then the stock A/B overlay. The stock A/B overlay only sets `RootfsRedundancyLevel`, so it doesn't undo your changes. If you ever override a variable the A/B overlay also sets, the A/B overlay wins.
-- The flash uses the **first** `carrier-bsp/` directory it finds, and it searches BSP extensions first. If your carrier-board BSP ships its own `carrier-bsp/`, your override is **silently dropped**. Merge your changes into that one.
+- The flash uses the **first** `carrier-bsp/` directory it finds. It searches runtime-level `stone_include_paths` first, then extensions' paths, then the runtime's own build directory. If your carrier-board BSP ships its own `carrier-bsp/`, an override staged in the runtime build directory is **silently dropped**. Merge your changes into the carrier's slot and list the result as a runtime-level path. See [Jetson carrier boards](../jetson-carrier-boards/#only-one-carrier-bsp-is-used).
 - The copy in the build output is at `output/runtimes/<rt>/stone/carrier-bsp/`. Compare its hash with your generated file to confirm it was used.
 
 Useful variables (under `/fragment@0/__overlay__/firmware/uefi/variables`):
