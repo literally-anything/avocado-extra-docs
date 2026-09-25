@@ -4,7 +4,7 @@ description: How target-<name> and kernel-<spec> sub-keys are applied, merged an
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`Config::resolve_overrides_in_value`, `merge_values`, `src/utils/kernel_version.rs`).
+avocado-cli `1.0.0-rc.5` (`Config::resolve_overrides_in_value`, `resolve_image_section`, `merge_values`, `commands/ext/mod.rs` `resolve_remote_ext_config`, `src/utils/kernel_version.rs`).
 :::
 
 Any mapping that the CLI resolves overrides on can carry sub-keys that apply only for one target or one kernel:
@@ -30,7 +30,7 @@ extensions:
 | `kernel-<spec>:` | The resolved kernel version matches `<spec>` |
 | `<name>:` (a bare target name, legacy) | `<name>` equals the current target. Deprecated, with a warning. |
 
-**Keys that don't match are removed silently.** A typo like `target-jetson-orin-nx2:` never applies and never warns. Neither does a `kernel-` spec that never matches.
+**Keys that don't match are removed silently.** A typo like `target-jetson-orin-nx2:` never applies and never warns. Neither does a `kernel-` spec that never matches. (A `kernel-` spec that can't be parsed at all does warn.) A bare key naming *another* supported target is removed too.
 
 `<spec>` accepts three forms:
 - A dot-prefix glob: `6.6.*`
@@ -65,7 +65,8 @@ Matched blocks are processed recursively, so you can nest a `kernel-6.6.*:` insi
 
 | Section | `target-` | `kernel-` |
 |---|---|---|
-| `extensions.<name>` (at install time) | Yes | Yes |
+| `extensions.<name>` at install time (what gets installed) | Yes | Yes |
+| `extensions.<name>` at `ext build` / `ext image` (overlay, `on_merge`, `enable_services`, image settings, ...) | Yes | **No, and silently.** `kernel-` blocks are stripped because the kernel isn't resolved at that step (`commands/ext/mod.rs`, `get_merged_ext_config`). Only put `packages` inside a `kernel-` block. |
 | `runtimes.<name>` | Yes | No |
 | `rootfs`, `initramfs`, `kernel` (at image build time) | Yes | **No.** The CLI warns and ignores them, because the kernel version isn't known yet at that step. |
 

@@ -4,7 +4,7 @@ description: How to look inside Avocado's build volume on macOS and Linux, read-
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` with `avocado-vm` on macOS (Apple Silicon).
+avocado-cli `1.0.0-rc.5` with `avocado-vm` on macOS (Apple Silicon). The hard-link target for `runtimes/<rt>/extensions/*.raw` was checked with `ls -li` and `find -inum` against a real project's build volume on 2026-09-25; `output/extensions/` held separate-inode copies, including old versions left behind ([Mental model](../../start/mental-model/#where-state-lives)).
 :::
 
 Everything the build produces lives in one Docker volume per project. Reading it directly is the fastest way to answer "what is actually in my image?"
@@ -55,7 +55,7 @@ Useful paths inside it (see [Mental model](../../start/mental-model/#where-state
 |---|---|
 | `/v/<target>/rootfs/` | Rootfs sysroot. The image adds a few files at build time, such as an empty `/etc/machine-id`. |
 | `/v/<target>/runtimes/<rt>/extensions/<ext>/` | An extension's sysroot |
-| `/v/<target>/runtimes/<rt>/extensions/*.raw` | Built extension images, hard links to `output/extensions/` |
+| `/v/<target>/runtimes/<rt>/extensions/*.raw` | Built extension images, hard-linked to a content-addressed copy under `runtimes/<rt>/var-staging/lib/avocado/images/<id>.raw` (**not** to `output/extensions/`, which holds separate copies — see below) |
 | `/v/<target>/output/runtimes/<rt>/stone/` | Everything the flash tooling uses |
 | `/v/<target>/output/runtimes/<rt>/os-bundle.aos` | The OS bundle used for deploys |
 | `/v/<target>/.stamps/` | The up-to-date records |

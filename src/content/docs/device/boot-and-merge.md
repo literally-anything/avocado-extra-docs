@@ -49,7 +49,7 @@ The 2024 rootfs ships `80-wired.network` (`Type=ether`, `Name=!veth*`), which ma
 
 A mask shipped in a confext (for example `etc/systemd/system/getty.target -> /dev/null`) arrives after systemd has planned the boot:
 
-- Units that the plan already queued still start. On the Jetson, the BSP's `serial-getty@ttyTCU0` and the console getty still came up with `getty.target` masked this way.
+- Units that the plan already queued still start. On the Jetson, with `getty.target` masked from a confext, the serial login on `ttyTCU0` kept working and the broken `getty@getty.service` still started. Moving the same mask into the rootfs overlay stopped both.
 - The queued start of the masked unit itself fails, on every boot:
 
   ```text

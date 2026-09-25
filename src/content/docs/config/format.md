@@ -4,7 +4,7 @@ description: The load pipeline for avocado.yaml, including composition, templati
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/utils/config.rs`, `src/utils/interpolation/`).
+avocado-cli `1.0.0-rc.5` (`src/utils/config.rs`: `merge_external_config`, the named-or-single deserializers; `src/utils/interpolation/`; `src/utils/version.rs`; `ext/install.rs`; `ext/build.rs`).
 :::
 
 ## The load pipeline
@@ -13,10 +13,10 @@ Every command that reads `avocado.yaml` (or whatever `-C/--config` points at) ru
 
 1. **Parse** the YAML. The CLI uses `serde_yaml` 0.9, which follows YAML 1.2. See [YAML 1.2 rules](#yaml-12-rules) below.
 2. **Compose.** The `avocado.yaml` of every fetched extension (`source: { type: package | git | path }`) is merged into your config:
-   - The extension's own `extensions.<name>` block is always merged.
-   - `sdk.packages` and `sdk.compile` entries are merged in.
-   - Anything else comes in only if you list it under `source.include`, for example `provision_profiles.*`.
-   - `distro`, `default_target` and `supported_targets` always come from **your** file. An extension can never override them.
+   - The extension's own `extensions.<name>` block is always merged. It's found by exact name, then by the name with a target suffix stripped, then, if the fetched file defines exactly one extension, that one. It's deep-merged into yours, and **your keys win** on conflicts: the fetched file only fills in keys you didn't set.
+   - An `sdk.compile.<section>` comes in when one of the extension's packages refers to it (`compile: <section>`), or when `source.include` matches it.
+   - Everything else comes in **only if `source.include` matches it**: `sdk.packages.<pkg>`, `provision_profiles.<profile>`, `rootfs`, `initramfs`. For example, a fetched extension's own `sdk.packages` never reach your SDK unless you include `sdk.packages.*`. Where both files define the same entry, yours wins.
+   - `distro`, `default_target`, `supported_targets` and the base SDK settings (`sdk.image`, `sdk.container_args`) always come from **your** file. An extension can never override them.
 3. **Template.** Every `{{ ... }}` in every string, **including mapping keys**, is resolved. See [Templating](../templating/).
 4. **Type-check** the sections that have a fixed shape: `distro`, `sdk`, `kernel`, `rootfs`, `initramfs`, `permissions`, `runtimes.<name>`, `signing_keys`, `connect`, `repos`.
 5. The `extensions` section, and some runtime keys, are **not** type-checked. Each command reads the keys it cares about straight from the YAML when it needs them.

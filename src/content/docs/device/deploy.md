@@ -4,7 +4,7 @@ description: How avocado deploy pushes a runtime to a device, when it reboots an
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/commands/runtime/deploy.rs`), avocadoctl `0.12.0` (`src/commands/runtime.rs`, `src/staging.rs`).
+avocado-cli `1.0.0-rc.5` (`src/commands/runtime/deploy.rs`), avocadoctl `0.12.0` (`src/commands/runtime.rs`, `src/commands/staging.rs`, `src/commands/ext.rs`) and its `avocado-ensure-extensions.service` in meta-avocado `scarthgap` at `16e6328`. A live refresh (`runtime.rs`) calls `ext::refresh_extensions` directly, which unmerges, re-merges and runs post-merge tasks including `daemon-reload`; it never runs `avocado-ensure-extensions.service`, which is boot-only (`Before=sysinit.target`, `WantedBy=sysinit.target`) and is what restarts `sockets.target timers.target paths.target multi-user.target` at boot.
 :::
 
 ```bash
@@ -36,7 +36,7 @@ A live refresh doesn't restart services that are already running. After the merg
 
 ## Deploying over the link you're changing
 
-If you deploy over a link that one of your extensions provides (a USB gadget, a Wi-Fi config), the refresh keeps it up, because nothing restarts it. **The next reboot** applies the change. If the new version doesn't work, you've lost the link. Before that reboot, make sure you have another way in: a serial console, a working network path that doesn't depend on the change, or be ready to reflash.
+If you deploy over a link that one of your extensions provides (a USB gadget, a Wi-Fi config), the refresh generally keeps it up, because a live refresh doesn't restart `multi-user.target` or anything else the way boot does (see [Boot and extension merge](../boot-and-merge/)). The one thing that can restart it anyway is the extension's own `on_merge`, if it names that service or reloads something the link depends on (for example `systemctl --no-block try-reload-or-restart systemd-networkd.service`). Check your `on_merge` list before relying on this. **The next reboot** applies the change either way. If the new version doesn't work, you've lost the link. Before that reboot, make sure you have another way in: a serial console, a working network path that doesn't depend on the change, or be ready to reflash.
 
 ## Other things to know
 

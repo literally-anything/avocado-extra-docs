@@ -4,7 +4,7 @@ description: Where each part of an Avocado build runs, where its state lives, an
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0`, 2024/edge on `jetson-orin-nano-devkit`.
+avocado-cli `1.0.0-rc.5` (`commands/clean.rs`, `ext/build.rs`), avocadoctl `0.12.0`, 2024/edge on `jetson-orin-nano-devkit`. Volume layout checked read-only on 2026-09-25.
 :::
 
 Most Avocado gotchas make sense once you know **which of three places** a piece of work happens in. Each one sees different files and different environment variables, and keeps different state.
@@ -29,9 +29,9 @@ Some consequences:
 |---|---|---|
 | `avocado.yaml`, overlays, scripts | Your project directory | Yes |
 | `avocado.lock` (resolved package versions, feed snapshot, kernel pin) | Your project directory. The official docs still say `.avocado/lock.json`, which is out of date. | Yes. Clear it with `avocado unlock` or `avocado clean --unlock`. |
-| `.avocado/` (overlay staging, provision state) | Your project directory | Cleared |
+| `.avocado/` (overlay staging, provision state) | Your project directory | **Yes.** `avocado clean` only removes the volume and `.avocado-state`. Delete it by hand. |
 | Sysroots, stamps, built images | The Docker volume `avo-<uuid>`, mounted at `/opt/_avocado` in the SDK container | Removed |
-| `.avocado-state` | Your project directory. It records which volume belongs to this project. | Rewritten |
+| `.avocado-state` | Your project directory. It records which volume belongs to this project. | Removed; the next command creates a new volume and a new file |
 
 The build volume is laid out per target:
 
@@ -42,6 +42,7 @@ The build volume is laid out per target:
 ├── sdk/target-sysroot/           # headers/libs for cross-compiling
 ├── rootfs/                       # rootfs sysroot (packages + overlay)
 ├── initramfs/                    # initramfs sysroot
+├── kernel/                       # the pinned kernel's files
 ├── includes/<ext>/               # avocado.yaml + stone files of fetched extensions
 ├── extensions -> runtimes/<r>/extensions   # legacy compatibility symlink
 ├── runtimes/<runtime>/
@@ -49,7 +50,7 @@ The build volume is laid out per target:
 │   ├── extensions/<ext>-<ver>.raw
 │   └── ...kernel, initramfs, rootfs image, flash inputs
 └── output/
-    ├── extensions/<ext>-<ver>.raw
+    ├── extensions/<ext>-<ver>.raw   # old versions are never removed
     └── runtimes/<runtime>/{os-bundle.aos, stone/}
 ```
 
@@ -64,7 +65,7 @@ A **runtime** is what you deploy. It's made of:
 - **Extensions**: EROFS images merged over the rootfs at boot. A `sysext` overlays `/usr` and `/opt`. A `confext` overlays `/etc`. An extension can be both, and the CLI builds both by default.
 - **The var partition**: btrfs and writable. It persists across updates, and it's where extension images and runtime manifests live (`/var/lib/avocado`).
 
-Extensions are merged by `avocadoctl`, **not** by stock `systemd-sysext`, which Avocado disables. That merge happens after early boot services like `systemd-modules-load` and `systemd-sysctl` have already run. See [Boot and extension merge](../../device/boot-and-merge/).
+Extensions are merged by `avocadoctl`, **not** by stock `systemd-sysext`, which Avocado disables. Early boot services like `systemd-modules-load` and `systemd-sysctl` have no ordering against that merge, and in practice they run before it. See [Boot and extension merge](../../device/boot-and-merge/).
 
 ## Three kinds of "up to date"
 

@@ -157,7 +157,7 @@ runtimes:
 | `target` | string | Pin the runtime to one target |
 | `targets` ◆ | list | Scope the runtime to several targets (for per-target opt-ins like `var.encrypt`) |
 | `target_board` | string | Board for `{{ avocado.target.board }}`, **only when this runtime is resolved through `AVOCADO_RUNTIME`, `default_runtime` or the single-runtime rule**. `-r` doesn't count ([details](../../config/templating/#avocado-computed-values)). There's no `board:` key. |
-| `version` ◆ | string | Runtime version label. Defaults to a generated short UUID. |
+| `version` ◆ | string | Runtime version label. Defaults to the first 8 characters of a random UUID, **new on every build**, so set it if you want stable version strings. |
 | `kernel` | kernel name, or inline [kernel](#kernel) | Overrides the top-level kernel. `cmdline_extra` here applies only to this runtime. |
 | `rootfs`, `initramfs` ◆ | name, or inline [image](#rootfs-and-initramfs) | Overrides the top-level image, for example `{ permissions: dev }` |
 | `signing` | [mapping](#runtimesrsigning) | Signing for images and updates |
@@ -213,7 +213,7 @@ This section isn't type-checked; each command reads the keys it needs. Honors `t
 | `on_unmerge` ◆ | list | none | Commands run on unmerge |
 | `reload_service_manager` ◆ | boolean | `false` | Writes `EXTENSION_RELOAD_MANAGER=1` |
 | `post_build` ◆ | string (script path) | none | Runs after the extension is built, with `$AVOCADO_EXT_NAME`, `$AVOCADO_TARGET` and `$AVOCADO_BUILD_EXT_SYSROOT` set |
-| `package_files` ◆ | list | config + overlays + compile/install scripts | Files included when you package the extension with `avocado ext package`. An explicit list **replaces** the defaults. It's also hashed for up-to-date checks when the extension compiles something. |
+| `package_files` ◆ | list | the config file, all overlay directories (including `target-` ones), compile and install scripts | Files included when you package the extension with `avocado ext package`. An explicit list **replaces** the defaults, except that a `version: { file }` provider's file is always added. It's also hashed for up-to-date checks when the extension compiles something. |
 | `stone_include_paths` ◆ | list | none | Directories handed to the flash tooling, for example a `carrier-bsp/` override ([details](../../hardware/jetson-orin/#uefi-boot-settings-l4tconfigurationdtbo)) |
 | `filesystem` | string | the rootfs `filesystem` | `erofs`, `erofs-lz4`, `erofs-zst` or `squashfs` |
 | `image` ◆ | `{ type: raw \| kab, args?, verity? }` | raw | `kab` wraps the image with kabtool. `verity` **must be a real boolean**. |
