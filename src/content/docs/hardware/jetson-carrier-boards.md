@@ -44,6 +44,18 @@ A runtime-level compile/install step can do this. Its install script gets only `
 
 Check the result in `output/runtimes/<rt>/stone/carrier-bsp/`. The provision log's `Carrier:` line prints `CARRIER_LABEL`.
 
+## The Orin NX BSP extension has fewer drivers than the Nano's
+
+`avocado-bsp-jetson-orin-nx` (2024/edge snapshot 17) lists noticeably fewer modules than `avocado-bsp-jetson-orin-nano-devkit`, even though both boards use the same devkit carrier. Missing from the NX list, among others:
+
+- **CAN:** `kernel-module-mttcan`, `kernel-module-can-dev`
+- **Wi-Fi and Bluetooth stack:** `kernel-module-cfg80211`, `kernel-module-mac80211`, `kernel-module-rtk-btusb`, `kernel-module-bnep`
+- **CSI camera capture:** `kernel-module-nvhost-vi5`, `-nvhost-nvcsi`, `-nvhost-isp5`, `-nvhost-capture`, `-capture-ivc`
+- **Netfilter:** `kernel-module-ip-tables`, `-iptable-filter`, `-iptable-nat`, `-nf-nat`
+- `kernel-module-nvpps`, `kernel-module-fuse`
+
+The NX list comments that it's the "same set used by avocado-bsp-icam-540", which suggests it was cut down for that box. A carrier extension that replaces the BSP has to add these back. The worked example adds `mttcan` for the JAJ's CAN port.
+
 ## One flash configuration per module SKU
 
 A target's flash settings fit exactly one module SKU, and nothing detects the module at flash time. Avocado's carrier guide lists "provision-time SOM-SKU detection" as future work. NVIDIA's own `l4t_initrd_flash` reads the module EEPROM and picks the SKU's files, which is why vendor images (ARK's, for example) cover every module with one package.
@@ -116,7 +128,7 @@ avocado build -r dev --target jetson-orin-nx --target-board ark-jaj-nx16
 - Declare each board's extension under its own key. `source` is read from the raw extension block, so a `target-` override can't switch one templated key between a package and a git source.
 - `sdk install` only fetches the remote extensions that the runtimes in scope use.
 - A runtime's `target_board` is read without resolving `target-<name>:` overrides, and `default_target_board` is global. So you can't make a board the default for only one target; pass `--target-board`.
-- Pin git-sourced BSPs to a **tag**. With a commit hash, `git clone --branch` fails, the clone falls back to the default branch, and the later `git checkout <hash>` failure is ignored (`ext_fetch.rs`), so you silently build the branch tip.
+- Pin git-sourced BSPs to a **tag**. With a commit hash, `git clone --branch` fails, the clone falls back to the default branch, and the later `git checkout <hash>` failure is ignored (`ext_fetch.rs`), so you silently build the branch tip. A **mistyped tag** takes the same path. The lock doesn't record the commit either, so nothing shows it afterwards. (`sparse_checkout` uses `git fetch origin <ref>` instead, which can fetch a commit.)
 
 ## 2026 (wrynose)
 
@@ -126,7 +138,7 @@ The 2026 NX uses kernel 6.18 by default, or L4T R39.2 with kernel 6.8. The carri
 
 ## Worth reporting upstream
 
-None of these had a matching issue in `avocado-linux/*` on 2026-09-25:
+Full write-ups for these, and for the non-Jetson bugs, are collected on [Known upstream issues](../../reference/known-issues/). None of these had a matching issue in `avocado-linux/*` on 2026-09-25:
 
 - **meta-avocado: pick the module SKU at flash time.** Read the EEPROM and select that SKU's files (or let `carrier.env` key values by SKU). Then one carrier extension covers every module. Failing that, publish the per-SKU values as includable fragments.
 - **meta-avocado: `nvpmodel.conf` is fixed to one SKU.** Ship all the per-SKU tables and keep `/etc/nvpmodel.conf` a symlink, so `nvpower.sh` picks the right one at boot.

@@ -4,7 +4,7 @@ description: Why a change to avocado.yaml or an overlay can silently fail to rea
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/commands/rootfs/install.rs`, `src/commands/ext/build.rs`, `src/commands/ext/install.rs`, `src/commands/ext/image.rs`, `src/utils/container.rs`). The incidents described come from a real Jetson Orin project built with this CLI on 2026-09-24.
+avocado-cli `1.0.0-rc.5` (`src/commands/rootfs/install.rs`, `src/commands/ext/build.rs`, `src/commands/ext/install.rs`, `src/commands/ext/image.rs`, `src/commands/clean.rs`, `src/utils/stamps.rs`, `src/utils/container.rs`, `src/utils/overlay_preprocess.rs`). The incidents described come from a real Jetson Orin project built with this CLI on 2026-09-24 and 2026-09-25.
 :::
 
 :::danger[Short version]
@@ -62,9 +62,30 @@ Extension sysroots live per runtime at `/opt/_avocado/<target>/runtimes/<runtime
 
 The CLI turns the legacy path into a symlink to the runtime tree, but only if it's missing, already a symlink, or holds no installed packages. It won't replace a real directory that has packages in it. A step that reads the legacy path while it's still a real directory sees different sysroots from the runtime tree. That's a plausible cause of the empty images above, though not a confirmed one.
 
+**The symlink follows the last runtime that ran a command with `AVOCADO_RUNTIME` set** (`utils/container.rs`, `ln -sfn` on every such run). The CLI's own comment lists the commands that still read the legacy path: build, image, clean, runtime build, fetch and hitl. So with two runtimes on the **same target**, a plain `avocado install` (which walks every runtime) can leave the symlink pointing at the other runtime, and the next `avocado build -r <yours>` builds from that runtime's extension sysroots. Seen in practice: after `avocado install` without `-r`, the `dev` build failed in the SSH extension until `avocado install -r dev` was run again. Give each runtime its own target (`target:` on the runtime), or always pass `-r` to `install`.
+
 ## The lock can disagree with the build
 
-After an extension's packages were changed from `usb-f-ecm` and `usb-f-rndis` to `usb-f-ncm` (written with `{{ avocado.kernel.version }}`), `avocado install` rewrote `avocado.lock` but kept the old ECM and RNDIS entries, with no NCM entry. The sysroot contained only NCM. Don't treat the lock as a record of what's in the image.
+**Packages written with `{{ avocado.kernel.version }}` are never recorded in `avocado.lock`.** `ext install` substitutes the kernel version into the name it installs, but it queries the installed versions using the **unsubstituted** key (`ext/install.rs`, the `package_names.push(package_name…)` line). No package is called `kernel-module-foo-{{ avocado.kernel.version }}`, so nothing is found and nothing is written. Those packages are never pinned: every clean install takes whatever the feed has for the pinned kernel.
+
+Seen in practice, twice:
+
+- After an extension's packages were changed from `usb-f-ecm` and `usb-f-rndis` to templated names ending in `usb-f-ncm`, `avocado install` rewrote `avocado.lock` but kept the old hand-written ECM and RNDIS entries, with no NCM entry. The sysroot contained only NCM.
+- After `avocado unlock` and a fully clean install, the lock had no packages at all for that extension, although its image had all three `.ko` files.
+
+Don't treat the lock as a record of what's in the image.
+
+## Inputs the up-to-date check misses
+
+`ext build`'s input hash (`compute_ext_build_input_hash` in `utils/stamps.rs`) folds a fixed list of extension keys plus some file contents. Changing something outside it doesn't rebuild the extension:
+
+- **Compile sources.** For an extension built from an `sdk.compile` section, the hash covers the compile and install **scripts**, plus any `package_files`. It doesn't cover the source files those scripts read. Edit only `main.c` and the build reports "up to date" and ships the old binary. List the source directory in the extension's `package_files` (for example `package_files: [ext/my-tool]`); note that this also replaces the default file list `avocado ext package` bundles.
+- **`modprobe:`.** The hash lists a key called `kernel_modules`, which the build no longer reads. It doesn't list `modprobe`, which the build turns into release-file lines. So changing only an extension's `modprobe:` list leaves the old list in the image. (From reading the source; not reproduced.) Clean the extension after changing it.
+- **Runtime-level compile steps.** Runtime `packages:` entries with `compile`/`install` have no `package_files`, so the compile-source trap has no fix there. Keep inputs inside the scripts, or have the script check its inputs' checksums.
+
+## `avocado clean` leaves `.avocado/` behind
+
+`avocado clean` removes the build volume and `.avocado-state`, and nothing in your project folder. In particular it leaves `.avocado/overlay-staging/`, where preprocessed overlays are written with their templates filled in. (A comment in `utils/overlay_preprocess.rs` says `avocado clean` clears it. `commands/clean.rs` doesn't.) Each overlay's staging copy is replaced the next time that overlay is built. Delete `.avocado/` by hand if it may hold secrets.
 
 ## What to do
 

@@ -53,6 +53,6 @@ Roughly in order of how much they'd help.
 - [ ] **Remote builds with `--runs-on`** and NFS
 
 **Reference**
-- [ ] **Known upstream issues,** each with its workaround (avocado-cli #280, #283, and the overlay, lock and on_merge reports)
+- [x] **Known upstream issues,** each with its workaround (avocado-cli #280, #283, and the overlay, lock and on_merge reports)
 - [ ] **Glossary:** runtime, extension, sysext, confext, stone, BSP, snapshot, releasever, ...
 - [ ] **More hardware notes:** Raspberry Pi, i.MX 8M/93, QEMU

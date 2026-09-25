@@ -4,7 +4,7 @@ description: How extension settings become lines in an extension-release file, a
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/commands/ext/build.rs`), avocadoctl `0.12.0` (`src/commands/ext.rs`: `run_avocado_on_merge_commands`, `execute_single_command`, `process_post_merge_tasks_for_extensions`).
+avocado-cli `1.0.0-rc.5` (`src/commands/ext/build.rs`), avocadoctl `0.12.0` (`src/commands/ext.rs`: `run_avocado_on_merge_commands`, `execute_single_command`, `process_post_merge_tasks_for_extensions`), and the 2024/edge rootfs units (systemd 258). The D-Bus behaviour was seen on a `jetson-orin-nano-devkit`.
 :::
 
 ## Config becomes release-file lines
@@ -50,9 +50,13 @@ Nothing is added automatically for `sysctl.d` or `modules-load.d`. See [Boot and
 `avocadoctl` collects the `AVOCADO_ON_MERGE` lines from every enabled extension and **removes exact duplicates**, keeping the first occurrence. Then:
 
 1. Commands whose program is `depmod` or `ldconfig` run first.
-2. Every `modprobe:` module is loaded.
+2. Modules from `AVOCADO_MODPROBE=` lines are loaded. The CLI doesn't write those any more (its own test asserts `AVOCADO_MODPROBE` is gone), so this step is empty for extensions it builds.
 3. `systemctl daemon-reload` runs.
-4. Every remaining command runs, in collection order.
+4. Every remaining command runs, in collection order. **This includes your `modprobe:` modules**, which the CLI writes as ordinary `AVOCADO_ON_MERGE="modprobe <m>"` lines.
+
+avocadoctl's own comment says modules are loaded before the reload so that units needing them (its example is `proc-fs-nfsd.mount`) can start. With the current CLI that ordering doesn't happen. If a unit in your extension needs a module at reload time, have the unit load it (`Wants=`/`After=modprobe@<m>.service`).
+
+Because duplicates are dropped, several extensions can use the **identical** reload line and it runs once per merge.
 
 **There's no shell.** Each command string is:
 
@@ -104,6 +108,26 @@ Any `on_merge` command whose program might be missing (it lives in another exten
 - **Every live refresh**: `avocadoctl refresh`, a runtime activated by `avocado deploy`, and any other `avocadoctl` operation that re-merges extensions.
 
 Commands must be safe to run repeatedly.
+
+## D-Bus isn't up at boot
+
+At boot the merge runs before `sysinit.target`, and D-Bus starts after it. So any command that talks to a daemon over D-Bus fails during the boot-time merge and works during a live deploy. `networkctl reload`, `resolvectl`, `hostnamectl`, `timedatectl` and `busctl` are all in this group. The program exists, so avocadoctl only logs a warning, and nothing is reloaded.
+
+This was seen on a Jetson: `on_merge: ['networkctl reload']` was in the built release file, yet `usb0` stayed `unmanaged` after every boot, while the same command typed after boot fixed it.
+
+`systemctl` talks to PID 1 directly, so it works at boot. The pattern that works both at boot and on a live deploy:
+
+```yaml
+on_merge:
+  - systemctl --no-block try-reload-or-restart systemd-networkd.service
+on_unmerge:
+  - systemctl --no-block try-reload-or-restart systemd-networkd.service
+```
+
+- `try-` does nothing if the daemon isn't running yet, which is the usual case at boot. It then reads the merged files when it starts, provided it's ordered after the merge (see [Boot and extension merge](../boot-and-merge/#which-extension-files-take-effect-at-boot)).
+- `--no-block` avoids waiting on a job from inside a boot-time unit.
+- On the 2024 rootfs, `systemd-networkd` and `systemd-resolved` are `Type=notify-reload`, so this is a reload, not a restart.
+- **Recovery links:** a networkd reload during a live deploy applies a changed `.network` file straight away, including to the link you're deploying over. If that link is your only way in, leave this hook out of its extension and let the change apply at the next reboot.
 
 ## Templates are resolved at build time
 

@@ -84,6 +84,7 @@ export default defineConfig({
 						{ label: 'Config schema', slug: 'reference/config-schema' },
 						{ label: 'Environment variables', slug: 'reference/environment-variables' },
 						{ label: 'Official docs errata', slug: 'reference/official-docs-errata' },
+						{ label: 'Known upstream issues', slug: 'reference/known-issues' },
 					],
 				},
 				{

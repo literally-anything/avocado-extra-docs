@@ -4,7 +4,7 @@ description: Places where docs.peridio.com, the official config schema, or comme
 ---
 
 :::note[Verified against]
-docs.peridio.com as retrieved on 2026-09-24, compared with avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0` and meta-avocado `scarthgap` at `16e6328`.
+docs.peridio.com as retrieved on 2026-09-24, compared with avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0` and meta-avocado `scarthgap` at `16e6328`. Source-comment entries rechecked on 2026-09-25.
 :::
 
 Each entry quotes or summarizes the documented claim, then says what the code does. These are meant to be reported upstream, and removed from here once they're fixed.
@@ -56,6 +56,18 @@ See the [complete schema](../config-schema/) on this site.
 **The Tegra `device-tree-overlay-deliver` hook** (meta-avocado `scarthgap`, `recipes-avocado/avocado-dtc-overlay-deliver/`) says `initrd-flash.sh` never reads the overlay lists in `flashvars` (`OVERLAY_DTB_FILE`, `BOOTCONTROL_OVERLAYS`, `PLUGIN_MANAGER_OVERLAYS`).
 **Actually:** in the `jetson-orin-nx` flash BSP of 2024/edge snapshot 17, `initrd-flash` runs `tegra-flash-helper.sh --sign`, which sources `flashvars` and applies `BOOTCONTROL_OVERLAYS` and `OVERLAY_DTB_FILE` ([details](../../hardware/jetson-carrier-boards/#how-a-carrier-is-layered)).
 
+**avocadoctl: modules load before `daemon-reload`.** `process_post_merge_tasks_for_extensions` in avocadoctl `0.12.0` says it loads modules before the reload "so units like proc-fs-nfsd.mount can start".
+**Actually:** that step only reads `AVOCADO_MODPROBE=` lines, and avocado-cli `1.0.0-rc.5` writes `modprobe:` as `AVOCADO_ON_MERGE` instead. The modules load after the reload ([details](../../device/on-merge/#how-on_merge-commands-run)).
+
+**`.avocado/` is "cleared by `avocado clean`".** So says the doc comment on `materialize_preprocessed_overlay` (`utils/overlay_preprocess.rs`).
+**Actually:** `commands/clean.rs` removes only the volume and `.avocado-state` ([details](../../build/stale-state/#avocado-clean-leaves-avocado-behind)).
+
+**The legacy extensions symlink.** The comment in `utils/container.rs` says commands not yet passing `AVOCADO_RUNTIME` "transparently resolve to the same content" through it.
+**Actually:** it's repointed with `ln -sfn` on every run that sets `AVOCADO_RUNTIME`. With two runtimes on one target, those commands see whichever runtime ran last ([details](../../build/stale-state/#two-extension-sysroot-locations)).
+
+**The Jetson carrier guide's ICAM-540 label.** `meta-avocado-nvidia/docs/adding-a-jetson-carrier.md` shows `CARRIER_LABEL="Advantech ICAM-540 (P3768-0000 + P3767-0001 Orin NX 16GB)"`.
+**Actually:** P3767-0001 is the Orin NX **8GB** module; the 16GB is P3767-0000 ([details](../../hardware/jetson-carrier-boards/#one-flash-configuration-per-module-sku)).
+
 ## Not documented anywhere official
 
 These aren't errors, just gaps, and each has a page here:
@@ -67,3 +79,6 @@ These aren't errors, just gaps, and each has a page here:
 - That `on_merge` has no shell, and a missing program fails the whole merge ([on_merge](../../device/on-merge/))
 - That the empty `/etc/machine-id` makes `?` hostnames change every boot ([Hostname and machine-id](../../device/hostname-and-machine-id/))
 - That `rootfs.post_install` replaces all the default steps ([Config schema](../config-schema/#rootfs-and-initramfs))
+- That `on_merge` runs before D-Bus at boot, so D-Bus clients such as `networkctl` fail there ([on_merge](../../device/on-merge/#d-bus-isnt-up-at-boot))
+- That a mask shipped in a confext doesn't stop units already queued for that boot ([Boot and extension merge](../../device/boot-and-merge/#masks-in-extensions))
+- Open bugs and their workarounds ([Known upstream issues](../known-issues/))

@@ -1,10 +1,10 @@
 ---
 title: Hostname patterns and machine-id
-description: How ? placeholders in /etc/hostname work, why Avocado's machine-id is likely regenerated every boot, and what that does to anything derived from it.
+description: How ? placeholders in /etc/hostname work, why Avocado's machine-id is regenerated every boot, and what that does to anything derived from it.
 ---
 
 :::note[Verified against]
-systemd 258 (`NEWS`, `hostname(5)`), avocado-cli `1.0.0-rc.5` (`src/commands/rootfs/image.rs`), the 2024/edge rootfs. The claim that machine-id changes every boot comes from the code and systemd's documented behaviour; it hasn't been confirmed on a device yet. [Check it yourself](#check-your-device).
+systemd 258 (`NEWS`, `hostname(5)`), avocado-cli `1.0.0-rc.5` (`src/commands/rootfs/image.rs`), the 2024/edge rootfs. Confirmed on a `jetson-orin-nano-devkit` on 2026-09-25: the boot log shows a new random machine ID and a different `?` hostname on every boot. The `/var/lib/dbus/machine-id` detail is from systemd 258's `machine-id-setup.c`.
 :::
 
 ## `?` placeholders in `/etc/hostname`
@@ -32,7 +32,17 @@ touch "$ROOTFS_WORK/etc/machine-id"
 
 The rootfs, including `/etc`, is read-only EROFS. When systemd finds an **empty** `/etc/machine-id` that it can't write to, it makes up a new random ID for that boot and mounts it over the file. Nothing in Avocado saves it. `systemd-machine-id-commit` needs a writable `/etc` to do that, and there isn't one.
 
-**So the machine ID is most likely different on every boot**, and so is everything derived from it:
+**So the machine ID is different on every boot**, and so is everything derived from it. The boot log says so directly:
+
+```text
+systemd[1]: Initializing machine ID from random generator.
+systemd[1]: Installed transient '/etc/machine-id' file.
+systemd[1]: Hostname set to <garbanzo-f90761a7>.
+```
+
+systemd does look for a saved ID in `/var/lib/dbus/machine-id` first, and `/var` is persistent. But it ignores that file when it's a symlink, and the D-Bus package's tmpfiles rule (`L /var/lib/dbus/machine-id - - - - /etc/machine-id`) creates exactly that symlink. So nothing survives a reboot.
+
+Everything derived from it moves:
 
 | Derived from machine-id | Effect |
 |---|---|
@@ -58,6 +68,8 @@ If the ID differs between boots, everything above applies. If `findmnt` shows a 
 A few options, depending on what you need:
 
 - **Hostname and serial numbers:** derive them from a stable **hardware** ID at runtime instead of from machine-id, and hash it rather than exposing it raw. On Jetson, the module serial is usually in `/proc/device-tree/serial-number`. Check that it exists on your carrier board. A small oneshot service can set a transient hostname (`hostnamectl set-hostname --transient ...`) or feed the value to your gadget setup script.
+- **Values that must be stable, unique and not reveal machine-id:** `systemd-id128 machine-id --app-specific=<your UUID>` gives a keyed hash per purpose. It's on the 2024 rootfs. It's only as stable as machine-id itself.
+- **Keeping the random machine-id:** replace the `/var/lib/dbus/machine-id` symlink once with a regular file holding the current ID, from an early oneshot service. systemd should then log `Initializing machine ID from D-Bus machine ID.` on later boots. This follows from systemd's source; it hasn't been tried on a device.
 - **A fixed machine-id:** systemd accepts `systemd.machine_id=<32 hex chars>` on the kernel command line. That needs a per-device command line, which Avocado has no mechanism for.
 - **DHCP:** set `ClientIdentifier=mac` in your own `.network` files, as the stock `80-wired.network` does.
 

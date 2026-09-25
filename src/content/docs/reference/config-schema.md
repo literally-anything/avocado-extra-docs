@@ -199,7 +199,7 @@ This section isn't type-checked; each command reads the keys it needs. Honors `t
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `source` | `{ type: package, version, package?, repo_name?, include? }`, `{ type: git, url, ref?, sparse_checkout?, include? }` or `{ type: path, path, include? }` | local | Fetch this extension's definition from elsewhere. `include` pulls in extra sections, for example `provision_profiles.*`. |
+| `source` | `{ type: package, version, package?, repo_name?, include? }`, `{ type: git, url, ref?, sparse_checkout?, include? }` or `{ type: path, path, include? }` | local | Fetch this extension's definition from elsewhere. `include` pulls in extra sections, for example `provision_profiles.*`. For `git`, set `ref` to a **tag or branch**: any other value (a commit hash, or a mistyped tag) silently builds the default branch's tip, and the lock doesn't record the commit ([details](../../hardware/jetson-carrier-boards/#board-variants)). |
 | `version` | string, or `{ file, key?, format? }` ◆ | none, and required | Quote it (`'1.10'`, not `1.10`). The mapping form reads the version from a file in the extension's own tree; `format` is `toml`, `json` or `yaml`. |
 | `types` | list | `[sysext, confext]` | `sysext` overlays `/usr` and `/opt`. `confext` overlays `/etc`. `enable_services` needs `confext`. |
 | `scopes` | list | `[system]` | `initrd` and/or `system` ([details](../../device/boot-and-merge/#scopes)) |
@@ -208,7 +208,7 @@ This section isn't type-checked; each command reads the keys it needs. Honors `t
 | `sdk` | `{ packages }` | none | SDK packages this extension needs at build time, for example `nativesdk-uv: '*'`. They're merged into the SDK install. Accepts `target-` overrides. |
 | `overlay` | string, or `{ dir, mode, preprocess ◆ }` | none | Files copied into the extension. Never deletes anything ([details](../../build/stale-state/)). |
 | `enable_services` | list | none | Units to enable, as `*.wants/` symlinks in the confext. **Removing one doesn't remove its symlink.** |
-| `modprobe` | list | none | Modules loaded on every merge. A failure only warns. |
+| `modprobe` | list | none | Modules loaded on every merge, after `daemon-reload` with the other `on_merge` commands. A failure only warns. Changing only this list doesn't trigger a rebuild ([details](../../build/stale-state/#inputs-the-up-to-date-check-misses)). |
 | `on_merge` ◆ | list | none | Commands run on every merge. No shell ([details](../../device/on-merge/)). |
 | `on_unmerge` ◆ | list | none | Commands run on unmerge |
 | `reload_service_manager` ◆ | boolean | `false` | Writes `EXTENSION_RELOAD_MANAGER=1` |

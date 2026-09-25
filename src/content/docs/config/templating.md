@@ -119,7 +119,7 @@ extensions:
 - It works for **rootfs, initramfs and extension overlays** that live in your project. Overlays of **fetched** extensions are always copied verbatim, and the CLI prints a warning.
 - Only files that are valid UTF-8 are templated. Binaries pass through untouched.
 - In overlay files, a `{{ ... }}` whose context isn't `env`, `config` or `avocado` is **left alone**. That lets you ship Go, Jinja or Helm templates that use the same braces.
-- The processed copy is written to `.avocado/overlay-staging/<label>/` in your project. **Any secret you template in stays on disk there** until the next build or `avocado clean`. `.avocado/` must stay gitignored.
+- The processed copy is written to `.avocado/overlay-staging/<label>/` in your project. **Any secret you template in stays on disk there** until that overlay is next built. `avocado clean` doesn't remove it ([details](../../build/stale-state/#avocado-clean-leaves-avocado-behind)). `.avocado/` must stay gitignored.
 - The up-to-date check hashes the **processed** content. Changing an environment variable that an overlay template uses therefore triggers a rebuild, which is correct.
 
 Without `preprocess:`, a file like `overlays/discovery/etc/avahi/services/device.service` containing `{{ avocado.extensions.app.version }}` ships with those braces as literal text.

@@ -96,7 +96,7 @@ These are set inside the SDK container. The same values are available in every s
 | `AVOCADO_SDK_PREFIX` | `$AVOCADO_PREFIX/sdk/<arch>` |
 | `AVOCADO_SRC_DIR` | `/opt/src`, your project |
 | `AVOCADO_EXT_SYSROOTS` | `$AVOCADO_PREFIX/runtimes/$AVOCADO_RUNTIME/extensions` when a runtime is passed, otherwise the legacy `$AVOCADO_PREFIX/extensions` |
-| `AVOCADO_RUNTIME` | **Only when the CLI passes it.** Some steps run without it; write scripts that cope. |
+| `AVOCADO_RUNTIME` | **Only when the CLI passes it.** `avocado build` passes it to extension steps only when it builds exactly one runtime (`-r`, or a project with one runtime for the target). A multi-runtime build runs extension steps, including `post_build`, without it. |
 | `SSL_CERT_FILE`, `DNF_*` | Set up for the SDK's own dnf |
 
 Each kind of script also gets these:
@@ -112,7 +112,7 @@ Each kind of script also gets these:
 | `rootfs.post_install` / `initramfs.post_install` | `ROOTFS_WORK` / `INITRAMFS_WORK`, `ROOTFS_SYSROOT`, `AVOCADO_PREFIX`, `AVOCADO_SDK_PREFIX`, `RUNTIME_NAME`, `RUNTIME_VERSION`, `TARGET_ARCH` |
 
 :::tip
-To find out which runtime an extension's `post_build` belongs to when `AVOCADO_RUNTIME` isn't set, work it out from `AVOCADO_BUILD_EXT_SYSROOT`, which is `.../runtimes/<runtime>/extensions/<ext>`. Check that the path really has that shape before you trust the result.
+Without `AVOCADO_RUNTIME`, `AVOCADO_BUILD_EXT_SYSROOT` is the legacy `$AVOCADO_PREFIX/extensions/<ext>`, a symlink to whichever runtime last ran with a runtime set ([details](../../build/stale-state/#two-extension-sysroot-locations)). So a `post_build` can't reliably tell which runtime it's building for. If it needs to know, build with `-r`, and fail when `AVOCADO_RUNTIME` is empty rather than guessing.
 :::
 
 ## Release-file keys on the device

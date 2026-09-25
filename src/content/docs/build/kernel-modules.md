@@ -53,7 +53,8 @@ When the kernel pin changes (after `avocado unlock` or `avocado update`, for exa
 ## On the device
 
 - When an extension contains any `*.ko`, `*.ko.xz` or `*.ko.gz` file, the build automatically adds `AVOCADO_ON_MERGE="depmod"` to its release file. `avocadoctl` runs `depmod` after every merge, so modules shipped in extensions can be found by `modprobe`.
-- `modprobe: [foo]` in an extension becomes `AVOCADO_ON_MERGE="modprobe foo"`. It runs after `depmod`, on every merge. **If it fails, you only get a warning.** A service that needs the module should load it too, and fail clearly if it can't.
+- `modprobe: [foo]` in an extension becomes `AVOCADO_ON_MERGE="modprobe foo"`. It runs on every merge, after `depmod` **and after `systemctl daemon-reload`**, with the other `on_merge` commands ([details](../../device/on-merge/#how-on_merge-commands-run)). **If it fails, you only get a warning.** A service that needs the module should load it too, and fail clearly if it can't.
+- A module with no hardware alias (`libcomposite`, for example) is never loaded by udev, so something has to load it explicitly. Check with `modinfo -F alias <m>`.
 - Kernel code that asks for a module at runtime (for example configfs creating `functions/ncm.usb0`, which loads `usb_f_ncm`) finds extension modules too, because `depmod` has already run.
 - **`modules-load.d` files inside extensions don't work at boot.** `systemd-modules-load` runs before extensions merge, and nothing re-runs it. Use `modprobe:` instead. See [Boot and extension merge](../../device/boot-and-merge/).
 - Firmware is different. According to the Jetson BSP's own notes, the kernel's firmware loader fails with `-ELOOP` (error 40) when it reads firmware through the sysext `/usr` overlay. That's why Avocado ships Tegra GPU firmware in the rootfs, not the BSP extension. Plan on putting firmware you add in the rootfs too.

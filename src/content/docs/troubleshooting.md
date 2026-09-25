@@ -4,7 +4,7 @@ description: Troubleshooting index for Avocado builds and devices, organized by 
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0`, 2024/edge on Jetson Orin. Every entry links to the page that explains it.
+avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0`, 2024/edge on Jetson Orin, rechecked 2026-09-25. Every entry links to the page that explains it.
 :::
 
 ## On the device
@@ -42,10 +42,36 @@ The console shows:
 **Cause:** a `Condition*=` was false at start time. For example, `ConditionPathExistsGlob=/sys/class/udc/*` fails when the controller's driver loads late. systemd skips the unit without an error.
 **Fix:** wait for the resource inside the script, and use `Restart=on-failure` with `StartLimitIntervalSec=0`. → [Jetson USB device mode](../hardware/jetson-orin/#usb-device-mode-gadget)
 
-### The USB gadget interface gets a DHCP client instead of my static address
+### The USB gadget comes up, but `usb0` has no address
 
-**Cause:** networkd read its config before your extension merged, so the stock `80-wired.network` claimed `usb0`.
-**Fix:** a rootfs drop-in that orders `systemd-networkd` `After=avocado-extension.service`. → [Boot and extension merge](../device/boot-and-merge/)
+`networkctl status usb0` says `unmanaged` and `Network File: n/a`, and `networkctl reload` fixes it until the next boot.
+
+**Cause:** networkd read its config before your extension merged, so it never saw `50-usb0.network`. (The stock `80-wired.network` doesn't match `usb0`, whose type is `gadget`.)
+**Fix:** a rootfs drop-in that orders `systemd-networkd` `After=avocado-extension.service`. → [Boot and extension merge](../device/boot-and-merge/#which-extension-files-take-effect-at-boot)
+
+### `networkctl reload` in `on_merge` does nothing at boot
+
+**Cause:** the boot-time merge runs before D-Bus, and `networkctl` needs it. It only warns.
+**Fix:** `systemctl --no-block try-reload-or-restart systemd-networkd.service`. → [on_merge](../device/on-merge/#d-bus-isnt-up-at-boot)
+
+### `[FAILED] Failed to start getty.target` on every boot
+
+**Cause:** `getty.target` is masked from an extension, so the mask appears after systemd has queued the target. → [Masks in extensions](../device/boot-and-merge/#masks-in-extensions)
+**Fix:** move the mask to the rootfs overlay.
+
+### `getty@getty.service` fails over and over
+
+The journal shows `getty.target: Wants dependency dropin …/getty.target.wants/getty@.service … has different name`.
+**Cause:** the image build's offline `systemctl` linked the bare template instead of `getty@tty1.service`.
+**Fix:** mask `getty@.service` or `getty.target` in the rootfs overlay. → [Getty units from presets](../hardware/jetson-orin/#getty-units-from-presets)
+
+### The clock jumps back to 1970 a few seconds into boot
+
+**Cause:** the Orin's RTC driver loads from the BSP extension and sets the clock from an RTC that didn't keep time. → [Jetson clock](../hardware/jetson-orin/#clock)
+
+### After reboot or provisioning, the laptop doesn't see the USB gadget until the cable is replugged
+
+**Cause:** the Type-C port negotiated the host role, and the Jetson is hosting the laptop. → [Jetson USB device mode](../hardware/jetson-orin/#usb-device-mode-gadget)
 
 ### The hostname (or anything derived from machine-id) changes every boot
 
@@ -120,6 +146,25 @@ Check these, most likely first:
 
 **Cause:** `avocado clean` replaced the volume with a new one. And mounting an old volume name with `docker run -v` **creates** an empty volume under that name.
 **Fix:** read the current name from `.avocado-state`, and check it with `docker volume inspect` first. `avocado prune` removes abandoned volumes. → [Inspecting the build volume](../build/inspecting-the-volume/)
+
+### `avocado provision` exits with no error message after `Carrier-BSP overlay: …`
+
+**Cause:** the `carrier.env` in the flash bundle has no `CARRIER_LABEL=` line. The provision script reads it with `grep` under `set -euo pipefail`.
+**Fix:** always set `CARRIER_LABEL`. → [Jetson carrier boards](../hardware/jetson-carrier-boards/#how-a-carrier-is-layered)
+
+### A runtime's build fails in an extension it doesn't use, after an `avocado install`
+
+**Cause:** two runtimes share a target. The plain `install` left the shared extension sysroot symlink pointing at the other runtime.
+**Fix:** `avocado install -r <runtime>`, then rebuild. Give each runtime its own `target:`. → [Build state](../build/stale-state/#two-extension-sysroot-locations)
+
+### I edited a C file and the build said "up to date"
+
+**Cause:** the up-to-date check hashes compile scripts, not the sources they read.
+**Fix:** list the source directory in `package_files`. → [Build state](../build/stale-state/#inputs-the-up-to-date-check-misses)
+
+### A git-sourced extension builds the wrong version
+
+**Cause:** `ref` was a commit hash or a mistyped tag, so the fetch silently fell back to the default branch. → [Board variants](../hardware/jetson-carrier-boards/#board-variants)
 
 ### SDK tools fail with `cannot execute: required file not found`
 
