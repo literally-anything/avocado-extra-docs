@@ -29,6 +29,10 @@ Extension images are stored on the device by a **content-derived image ID**, not
 | The OS: kernel, initramfs or rootfs | Applies the OS update and **reboots** |
 | Nothing | Nothing; extensions aren't refreshed either |
 
+:::caution[Jetson: "the OS" here means rootfs only]
+On `jetson-orin-nano-devkit` and `jetson-orin-nx`, the stone manifest's `update.os_artifacts` lists only `rootfs`. A deploy can never write the kernel or kernel DTB partitions on these targets, no matter what changed in `kernel:` or `initramfs:`. Only `avocado provision` (a reflash) touches them — and even then, the runtime's `kernel.cmdline`/`cmdline_extra` and the project's own initramfs are dropped, not just left for the next deploy. See [Known upstream issues](../../reference/known-issues/#meta-avocado) and [The Jetson boot image ignores cmdline and initramfs](../../hardware/jetson-boot-image/).
+:::
+
 A live refresh doesn't restart services that are already running. After the merge, systemd reloads its config, but an active service keeps running the old version until something restarts it or you reboot. So:
 
 - A oneshot with `RemainAfterExit=yes` (like a USB gadget setup) **keeps its old configuration** until you reboot.

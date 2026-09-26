@@ -76,6 +76,7 @@ export default defineConfig({
 					items: [
 						{ label: 'NVIDIA Jetson Orin', slug: 'hardware/jetson-orin' },
 						{ label: 'Jetson carrier boards', slug: 'hardware/jetson-carrier-boards' },
+						{ label: 'Jetson boot image (cmdline/initramfs)', slug: 'hardware/jetson-boot-image' },
 					],
 				},
 				{

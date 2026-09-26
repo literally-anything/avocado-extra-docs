@@ -59,3 +59,5 @@ avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0`, 2024/edge. Open bugs are listed o
 - **`nvbootctrl` lives in the BSP extension.** An empty BSP breaks the merge. → [Jetson](../../hardware/jetson-orin/#ab-slots-and-nvbootctrl-verify)
 - **Only the first `carrier-bsp/` is used,** whole, and a carrier BSP's slot shadows one staged in the runtime build directory. → [Carrier boards](../../hardware/jetson-carrier-boards/#only-one-carrier-bsp-is-used)
 - **A target flashes one module SKU.** Another module (an 8GB Orin NX on `jetson-orin-nx`, for example) needs its own `carrier.env` values, and the image's `nvpmodel.conf` stays the default SKU's. → [Carrier boards](../../hardware/jetson-carrier-boards/#one-flash-configuration-per-module-sku)
+- **`kernel.cmdline_extra` and the project's `initramfs:` never reach a Jetson device,** on either `deploy` or `provision`. → [Jetson boot image](../../hardware/jetson-boot-image/)
+- **`avocado deploy` never carries the kernel or kernel DTB on Jetson,** only the rootfs. Only a reflash (`avocado provision`) touches them. → [Deploy](../../device/deploy/#reboot-or-not)
