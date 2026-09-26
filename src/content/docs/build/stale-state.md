@@ -56,6 +56,8 @@ Before each step, the CLI hashes that step's inputs (config section, overlay con
 
 Two later builds reused those images, because their inputs hadn't changed, and one of them was flashed. The empty BSP image had no `nvbootctrl`, which made the device's extension merge fail, so no extension services started. See [Boot and extension merge](../../device/boot-and-merge/#when-the-merge-fails).
 
+A [later comment on #283](https://github.com/avocado-linux/avocado-cli/issues/283#issuecomment-5734534010) from another reporter narrows this: a fetched, manifest-only BSP extension (`source: { type: package, version: '*' }`) was retested on `1.0.0-rc.4` and populated correctly, `nvbootctrl` included. The reproduction that reliably drops packages is an extension with an **inline `packages:` map written directly in the project's `avocado.yaml`**. The `avocado-bsp-jetson-orin-nano-devkit`/`avocado-ext-dev` case above used the fetched form, so either the defect isn't fully scoped yet or it isn't limited to the inline case either. Treat both shapes as suspect until this is resolved upstream.
+
 ## Two extension sysroot locations
 
 Extension sysroots live per runtime at `/opt/_avocado/<target>/runtimes/<runtime>/extensions/<ext>`. There's also a legacy path, `/opt/_avocado/<target>/extensions`, used by any step that runs without `AVOCADO_RUNTIME` set.
