@@ -4,13 +4,13 @@ description: Every avocado.yaml key the CLI actually reads, with its type, defau
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/utils/config.rs` typed structs, plus every `.get("<key>")` read of the untyped `extensions` and `runtimes` sections). Compared against the official JSON schema published on docs.peridio.com as of 2026-09-24.
+avocado-cli `1.0.0-rc.5` (`src/utils/config.rs` typed structs, plus every `.get("<key>")` read of the untyped `extensions` and `runtimes` sections). Compared against the official JSON schema published on docs.peridio.com as of 2026-09-24. Rechecked against avocado-cli `1.0.0` (`343c137`) on 2026-11-01: the typed structs and the `.get("<key>")` reads added since rc.5, `src/utils/device_tree_overlay.rs` for `boot_config`, `resolve_host_uid_gid` and its callers, and `requirement_matches` in `src/utils/version.rs`.
 :::
 
 **◆** marks a key that is **missing from the official schema**. The machine-readable version of this page is [`/schema/avocado.schema.json`](../../config/json-schema/).
 
 Keep in mind:
-- **Unknown keys are ignored silently at every level** ([details](../../config/format/#unknown-keys-are-silently-ignored)).
+- **Unknown keys are ignored at every level.** Since `1.0.0` the CLI warns about them, and `avocado config validate` lists them ([details](../../config/format/#unknown-keys-are-warned-about-not-rejected)). `1.0.0` also prints its own JSON Schema with `avocado config schema`.
 - Every string can use [templates](../../config/templating/).
 - Mappings accept [`target-<name>:` and `kernel-<spec>:` overrides](../../config/overrides/) where noted.
 
@@ -18,7 +18,7 @@ Keep in mind:
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `cli_requirement` | string (semver range) | none | The CLI refuses to run if its version doesn't satisfy this. Pre-release tags are stripped before comparing ([details](../../config/format/#cli_requirement)). |
+| `cli_requirement` | string (semver range) | none | The CLI refuses to run if its version doesn't satisfy this. A pre-release is retried with its tag stripped, except (since `1.0.0`) against a full exact pin such as `=1.0.0` ([details](../../config/format/#cli_requirement)). |
 | `source_date_epoch` | integer | none | Fixed timestamp for reproducible images. Separately, `avocado sbom` reads the `SOURCE_DATE_EPOCH` environment variable. |
 | `default_target` | string | none | Target used when there's no `--target` and no `AVOCADO_TARGET`. |
 | `default_target_board` | string | none | Lowest-priority source for `{{ avocado.target.board }}`. |
@@ -83,7 +83,7 @@ Each entry needs **exactly one** of `url`, `org` or `path`.
 | `container_args` | list of strings, or one string | none | Extra `docker run` arguments. A string is split on spaces; `\ ` and quotes are respected. |
 | `repo_url`, `repo_release` | string | none | **Legacy.** Use `distro.repo.url` and `distro.repo.releasever`. |
 | `disable_weak_dependencies` | boolean | none | Don't install packages that are only recommended |
-| `host_uid`, `host_gid` | integer | your UID/GID | For translating file ownership back to your host. Overridden by `AVOCADO_HOST_UID` and `AVOCADO_HOST_GID`. |
+| `host_uid`, `host_gid` | integer | none | **Parsed but never used**, in `1.0.0-rc.5` and `1.0.0`: every caller of `resolve_host_uid_gid` passes no config. `1.0.0`'s schema leaves them out, so they draw an ignored-key warning. Use the `AVOCADO_HOST_UID` and `AVOCADO_HOST_GID` [environment variables](../environment-variables/). |
 
 ### `sdk.compile.<name>`
 
@@ -120,7 +120,7 @@ One block (stored as `default`) or a map of named blocks. Runtimes can reference
 |---|---|---|---|
 | `packages` (alias `dependencies`) | package map | the `avocado-pkg-*` meta-package | Packages. `{{ avocado.kernel.version }}` works in keys. |
 | `filesystem` | string | rootfs `erofs-lz4`, initramfs `cpio.zst` | rootfs: `erofs-lz4` or `erofs-zst`. initramfs: `cpio`, `cpio.zst`, `cpio.lz4` or `cpio.gz`. Extensions without their own `filesystem` inherit the rootfs value. |
-| `overlay` | string, or `{ dir, mode, preprocess ◆ }` | none | Copied over the sysroot after install. **It never deletes files, in either mode** ([details](../../build/stale-state/)). `preprocess`: `true` or a list of globs ([details](../../config/templating/#overlay-files)). |
+| `overlay` | string, or `{ dir, mode, preprocess ◆ }` | none | Copied over the sysroot by `avocado install`. Opaque mode doesn't empty directories. Since `1.0.0`, files the overlay placed are removed once it stops providing them; before that, nothing was ever removed ([details](../../build/stale-state/#overlays-and-enable_services-now-remove-what-you-drop)). `preprocess`: `true` or a list of globs ([details](../../config/templating/#overlay-files)). |
 | `post_install` ◆ | string (script path) | built-in defaults | Runs on the image's working copy before `mkfs`. **Replaces the built-in defaults entirely**: the usrmerge symlinks, the empty `/etc/machine-id`, `systemctl preset-all` and `ldconfig`. If you set it, redo those yourself. It receives `$ROOTFS_WORK` or `$INITRAMFS_WORK`, plus `$ROOTFS_SYSROOT`, `$AVOCADO_PREFIX`, `$AVOCADO_SDK_PREFIX`, `$RUNTIME_NAME`, `$RUNTIME_VERSION` and `$TARGET_ARCH`, and runs under `set -euo pipefail`. |
 | `permissions` ◆ | name of a `permissions` entry, or inline | none | Users and groups written into this image's `/etc/passwd`, `/etc/shadow` and `/etc/group` |
 | `image` ◆ | mapping | raw | Wrapper format, same shape as `extensions.<n>.image` |
@@ -206,7 +206,7 @@ This section isn't type-checked; each command reads the keys it needs. Honors `t
 | `sysext_scopes` ◆, `confext_scopes` ◆ | list | `scopes` | Set each half separately |
 | `packages` | [package map](../../config/format/#package-entries) | none | Feed packages, and compile outputs via `{ compile, install }` |
 | `sdk` | `{ packages }` | none | SDK packages this extension needs at build time, for example `nativesdk-uv: '*'`. They're merged into the SDK install. Accepts `target-` overrides. |
-| `overlay` | string, or `{ dir, mode, preprocess ◆ }` | none | Files copied into the extension. Never deletes anything ([details](../../build/stale-state/)). |
+| `overlay` | string, or `{ dir, mode, preprocess ◆ }` | none | Files copied into the extension by `ext build`. Since `1.0.0`, files it placed are removed once it stops providing them; before that, nothing was ever removed ([details](../../build/stale-state/#overlays-and-enable_services-now-remove-what-you-drop)). |
 | `enable_services` | list | none | Units to enable, as `*.wants/` symlinks in the confext. **Removing one doesn't remove its symlink.** |
 | `modprobe` | list | none | Modules loaded on every merge, after `daemon-reload` with the other `on_merge` commands. A failure only warns. Changing only this list doesn't trigger a rebuild ([details](../../build/stale-state/#inputs-the-up-to-date-check-misses)). |
 | `on_merge` ◆ | list | none | Commands run on every merge. No shell ([details](../../device/on-merge/)). |
@@ -222,7 +222,8 @@ This section isn't type-checked; each command reads the keys it needs. Honors `t
 | `docker_images` | list of `{ image, tag }` | none | Container images pre-loaded onto the var partition |
 | `depends_on` ◆ | list of `name`, `{ name, version }` or `{ name: version }` | none | Other extensions this one needs. Resolved at build time. |
 | `class` ◆ | `application` or `platform` | `application` | Drives the dependency lints. An unknown value is an error. |
-| `device_tree_overlays` ◆ | list of `{ name, src, params? }` | none | Device-tree overlays to compile and install on the boot medium. `name` must be a safe basename. |
+| `device_tree_overlays` ◆ | list of `{ name, src?, params? }` | none | Device-tree overlays to compile and install on the boot medium. `name` must be a safe basename. Since `1.0.0`, an entry without `src` names a stock overlay the BSP already ships: it's delivered and selected, but nothing is compiled. Honors `target-` overrides since `1.0.0` (rc.5 read only the base value). |
+| `boot_config` ◆ | list of `key=value` strings | none | **New in `1.0.0`.** Lines the BSP's delivery hook writes to the boot medium, for settings an overlay can't express (`dtparam=i2c_arm=on`, `usb_max_current_enable=1`). The key must be an identifier, so `[gpio4=1]` and `#x=y` are refused, and so is `dtoverlay=` (use `device_tree_overlays`). Conflicting values for one key only warn. A board whose hook doesn't claim `boot_config` fails the runtime build. Honors `target-` overrides. |
 | `summary`, `description`, `license`, `vendor`, `url`, `release`, `arch` ◆ | string | | RPM metadata for `avocado ext package` |
 | `users`, `groups` | mapping | none | **Deprecated.** The build warns. Use top-level `permissions`. |
 

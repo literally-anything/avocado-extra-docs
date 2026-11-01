@@ -4,7 +4,7 @@ description: Running Avocado on a third-party Jetson carrier. Covers the carrier
 ---
 
 :::note[Verified against]
-Target `jetson-orin-nx`, 2024/edge snapshot 17 (`avocado-img-bootfiles` r0.14, kernel `6.6.127-yocto-standard`, L4T 36.5), meta-avocado `scarthgap` at `16e6328` and `wrynose` at `1bc1f99` (`meta-avocado-nvidia/`), vendor-meta-tegra `master`, avocado-cli `1.0.0-rc.5`. Checked in `stone-provision-tegraflash.sh`, `tegra-flash-helper.sh` and `initrd-flash` as shipped in the flash BSP, `avocado-build-jetson-orin-nx`, and the CLI's `utils/config.rs` (`get_stone_include_paths_for_runtime`), `commands/runtime/build.rs`, `utils/interpolation/avocado.rs` and `utils/ext_fetch.rs`. Built end to end for an ARK Just A Jetson (Orin NX 16GB): the build and the flash bundle are checked, but the board hasn't been flashed yet.
+Target `jetson-orin-nx`, 2024/edge snapshot 17 (`avocado-img-bootfiles` r0.14, kernel `6.6.127-yocto-standard`, L4T 36.5), meta-avocado `scarthgap` at `16e6328` and `wrynose` at `1bc1f99` (`meta-avocado-nvidia/`), vendor-meta-tegra `master`, avocado-cli `1.0.0-rc.5`. Checked in `stone-provision-tegraflash.sh`, `tegra-flash-helper.sh` and `initrd-flash` as shipped in the flash BSP, `avocado-build-jetson-orin-nx`, and the CLI's `utils/config.rs` (`get_stone_include_paths_for_runtime`), `commands/runtime/build.rs`, `utils/interpolation/avocado.rs` and `utils/ext_fetch.rs`. Built end to end for an ARK Just A Jetson (Orin NX 16GB): the build and the flash bundle are checked, but the board hasn't been flashed yet. The git `ref` note and the `device_tree_overlays` section were rechecked against avocado-cli `1.0.0` (`343c137`: `utils/ext_fetch.rs`, `utils/device_tree_overlay.rs`, `commands/sdk/install.rs`) on 2026-11-01; feeds weren't rechecked.
 :::
 
 Worked example: [bsp-ark-jaj](https://github.com/literally-anything/bsp-ark-jaj), board support for the ARK Electronics Just A Jetson with an Orin NX 16GB or 8GB.
@@ -111,7 +111,9 @@ A fetched extension's `stone/` directory is copied as-is and has no build step, 
 
 avocado-cli `1.0.0-rc.5` compiles `extensions.<ext>.device_tree_overlays` and runs a per-BSP delivery hook, `/usr/libexec/avocado/device-tree-overlay-deliver`. meta-avocado `scarthgap` has a Tegra hook (`avocado-dtc-overlay-deliver`) that merges the overlays into the base DTB.
 
-As of 2026-09-25 that package isn't in any published Jetson feed (2024/edge, 2024/next or 2026/next), and the `wrynose` layer has no such recipe.
+avocado-cli `1.0.0` adds stock overlays (an entry without `src`) and `boot_config` lines, and lets a board ship `usr/libexec/avocado/boot-settings.json` listing what its hook delivers (`dt_overlay`, `dt_overlay_stock`, `boot_config`, `kernel_args`). A runtime build that declares something the board doesn't list fails before any image is built. A board with no hook at all still fails, now naming each declared kind. Whether the Tegra hook ships such a file hasn't been checked. `device_tree_overlays` under an extension's `target-<name>:` key now applies; on rc.5 only the base value was read.
+
+As of 2026-09-25 that package isn't in any published Jetson feed (2024/edge, 2024/next or 2026/next), and the `wrynose` layer has no such recipe. Tracked as [meta-avocado#421](https://github.com/avocado-linux/meta-avocado/issues/421), open as of 2026-11-01.
 
 From reading the hook (not tested): it picks the base DTB from the flash BSP's own `.env.initrd-flash` `DTBFILE`. A carrier that sets `CARRIER_ENV_DTBFILE` at provision time would flash a different DTB from the one the overlays were merged into.
 
@@ -128,7 +130,7 @@ avocado build -r dev --target jetson-orin-nx --target-board ark-jaj-nx16
 - Declare each board's extension under its own key. `source` is read from the raw extension block, so a `target-` override can't switch one templated key between a package and a git source.
 - `sdk install` only fetches the remote extensions that the runtimes in scope use.
 - A runtime's `target_board` is read without resolving `target-<name>:` overrides, and `default_target_board` is global. So you can't make a board the default for only one target; pass `--target-board`.
-- Pin git-sourced BSPs to a **tag**. With a commit hash, `git clone --branch` fails, the clone falls back to the default branch, and the later `git checkout <hash>` failure is ignored (`ext_fetch.rs`), so you silently build the branch tip. A **mistyped tag** takes the same path. The lock doesn't record the commit either, so nothing shows it afterwards. (`sparse_checkout` uses `git fetch origin <ref>` instead, which can fetch a commit.)
+- Pin git-sourced BSPs to a **tag or commit**. Since avocado-cli `1.0.0`, every git extension is fetched with `git fetch --depth 1 origin <ref>` and `git checkout FETCH_HEAD` under `set -e` (`ext_fetch.rs`), so a commit SHA works and a ref that doesn't exist fails the fetch. A branch builds whatever it points at today, and the lock still doesn't record the commit. On `1.0.0-rc.5` and earlier, a commit hash or a **mistyped tag** made `git clone --branch` fail and fall back to the default branch, and the later `git checkout <hash>` failure was ignored, so you silently built the branch tip. There, pin tags only.
 
 ## 2026 (wrynose)
 

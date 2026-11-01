@@ -86,6 +86,7 @@ export default defineConfig({
 						{ label: 'Environment variables', slug: 'reference/environment-variables' },
 						{ label: 'Official docs errata', slug: 'reference/official-docs-errata' },
 						{ label: 'Known upstream issues', slug: 'reference/known-issues' },
+						{ label: 'CLI changes', slug: 'reference/cli-changes' },
 					],
 				},
 				{

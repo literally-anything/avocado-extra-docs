@@ -28,7 +28,7 @@ Roughly in order of how much they'd help.
 - [ ] **Production runtime checklist:** what the dev extensions quietly provide (root SSH, `/var` growth, empty root password) and what a production runtime must replace, including a recovery path
 - [ ] **Reproducible builds:** pinning the SDK by digest, the lock and snapshot pins, `source_date_epoch`, and what still varies (squashfs ownership, generated UUIDs)
 - [ ] **Debugging a device:** `avocadoctl` status commands, the varlink API, where logs go, and `systemd-analyze` against the merge timing
-- [ ] **CLI release notes that change behaviour:** a running log (kernel auto-suffix removal, overlay hashing in #210, the stamp fixes in #272 and #279, ...)
+- [x] **CLI release notes that change behaviour:** a running log, starting with 1.0.0 (`reference/cli-changes.md`). Still to add: older changes such as the kernel auto-suffix removal, overlay hashing in #210, and the stamp fixes in #272 and #279
 
 **Extensions**
 - [ ] **Extension authoring, end to end:** local, then `path`, then `git`, then a packaged extension (`avocado ext package`), plus `version: { file }` and `package_files`

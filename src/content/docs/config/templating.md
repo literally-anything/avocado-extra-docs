@@ -4,7 +4,7 @@ description: Exactly how {{ }} templates work in avocado.yaml, which files are t
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/utils/interpolation/`, `src/utils/overlay_preprocess.rs`, `src/utils/kernel_version.rs`).
+avocado-cli `1.0.0-rc.5` (`src/utils/interpolation/`, `src/utils/overlay_preprocess.rs`, `src/utils/kernel_version.rs`). `src/utils/interpolation/` is unchanged in `1.0.0` (`343c137`), so everything about `avocado.*`, `env.*` and `config.*` values below still applies; checked on 2026-11-01.
 :::
 
 ## Syntax
@@ -83,7 +83,7 @@ sdk:
 | `avocado.extensions.<name>.<field>` | A scalar field from the merged `extensions` section | Left in place if the field is missing, or if it's a mapping or list |
 
 :::caution[`-r/--runtime` doesn't feed templating]
-`avocado.runtime`, and the runtime-level `target_board` used for `avocado.target.board`, are resolved from `AVOCADO_RUNTIME`, then `default_runtime`, then the sole runtime. There's no path from the `-r` flag into this resolver. With `default_runtime: dev`, running `avocado build -r dev-local` still templates with `dev`'s `target_board`. If a template depends on the runtime, set `AVOCADO_RUNTIME` as well as passing `-r`.
+`avocado.runtime`, and the runtime-level `target_board` used for `avocado.target.board`, are resolved from `AVOCADO_RUNTIME`, then `default_runtime`, then the sole runtime. There's no path from the `-r` flag into this resolver, in `1.0.0` either, although [avocado-cli#288](https://github.com/avocado-linux/avocado-cli/issues/288), which reported it, is closed. With `default_runtime: dev`, running `avocado build -r dev-local` still templates with `dev`'s `target_board`. If a template depends on the runtime, set `AVOCADO_RUNTIME` as well as passing `-r`.
 :::
 
 ## `avocado.kernel.version`

@@ -424,12 +424,6 @@
         },
         "disable_weak_dependencies": {
           "type": "boolean"
-        },
-        "host_uid": {
-          "type": "integer"
-        },
-        "host_gid": {
-          "type": "integer"
         }
       }
     },
@@ -1290,8 +1284,7 @@
           "items": {
             "type": "object",
             "required": [
-              "name",
-              "src"
+              "name"
             ],
             "additionalProperties": false,
             "properties": {
@@ -1300,7 +1293,8 @@
                 "pattern": "^[A-Za-z0-9._-]+$"
               },
               "src": {
-                "type": "string"
+                "type": "string",
+                "description": "Overlay source. Omit it to name a stock overlay the BSP already ships (avocado-cli 1.0.0 and later)."
               },
               "params": {
                 "type": "object",
@@ -1313,6 +1307,14 @@
                 }
               }
             }
+          }
+        },
+        "boot_config": {
+          "type": "array",
+          "description": "avocado-cli 1.0.0 and later. key=value lines the BSP delivery hook writes to the boot medium, such as dtparam=i2c_arm=on. The key must be an identifier; select overlays with device_tree_overlays, not dtoverlay=. A board whose hook doesn't support boot_config fails the runtime build.",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!dtoverlay=)[A-Za-z_][A-Za-z0-9_]*=.*$"
           }
         },
         "summary": {

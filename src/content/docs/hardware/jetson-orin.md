@@ -4,7 +4,7 @@ description: Jetson Orin specifics on Avocado 2024, covering UEFI boot settings,
 ---
 
 :::note[Verified against]
-Target `jetson-orin-nano-devkit`, 2024/edge snapshot 16, kernel `6.6.127-yocto-standard`, L4T 36.5, meta-avocado `scarthgap` (`meta-avocado-nvidia/`), avocado-cli `1.0.0-rc.5` (`commands/sdk/install.rs`, `commands/rootfs/image.rs`). The getty, clock, Bluetooth and USB-C role notes come from a devkit's boot logs and a read-only look at its build volume on 2026-09-25.
+Target `jetson-orin-nano-devkit`, 2024/edge snapshot 16, kernel `6.6.127-yocto-standard`, L4T 36.5, meta-avocado `scarthgap` (`meta-avocado-nvidia/`), avocado-cli `1.0.0-rc.5` (`commands/sdk/install.rs`, `commands/rootfs/image.rs`). The getty, clock, Bluetooth and USB-C role notes come from a devkit's boot logs and a read-only look at its build volume on 2026-09-25. The getty section was rechecked against avocado-cli `1.0.0` (`343c137`, `commands/sdk/install.rs`) on 2026-11-01; the fix there hasn't been seen on a device yet.
 :::
 
 ## UEFI boot settings (`L4TConfiguration.dtbo`)
@@ -78,13 +78,17 @@ Error -2 is "file not found", which fits a load attempted before the extension i
 
 ## Getty units from presets
 
-The rootfs image build applies systemd presets with Avocado's offline `systemctl` stand-in (created by `avocado sdk install`), not the real one. The stand-in links template units under their bare name and ignores `DefaultInstance=`. systemd's stock `enable getty@.service` preset therefore produces `getty.target.wants/getty@.service`, where real `systemctl` makes `getty@tty1.service`. At boot, systemd fills in an instance itself and starts `getty@getty.service`, which fails on `/dev/getty` and restarts until it hits its start limit:
+:::tip[Fixed in avocado-cli 1.0.0]
+The stand-in `systemctl` now enables a template's preset instances, or its `DefaultInstance=`, and never links the bare template ([avocado-cli#338](https://github.com/avocado-linux/avocado-cli/pull/338)). Sysroots reinstall once after the upgrade. Everything below applies to `1.0.0-rc.5` and earlier.
+:::
+
+The rootfs image build applies systemd presets with Avocado's offline `systemctl` stand-in (created by `avocado sdk install`), not the real one. On rc.5 and earlier, the stand-in links template units under their bare name and ignores `DefaultInstance=`. systemd's stock `enable getty@.service` preset therefore produces `getty.target.wants/getty@.service`, where real `systemctl` makes `getty@tty1.service`. At boot, systemd fills in an instance itself and starts `getty@getty.service`, which fails on `/dev/getty` and restarts until it hits its start limit:
 
 ```text
 getty.target: Wants dependency dropin /etc/systemd/system/getty.target.wants/getty@.service target /usr/lib/systemd/system/getty@.service has different name
 ```
 
-The link carries the image's `SOURCE_DATE_EPOCH` timestamp (`Jan 1 00:00`) and lives in `rootfs-work`, which only exists during the image build, so it's not in the rootfs sysroot you'd normally inspect. Any template unit with a preset and `DefaultInstance=` is affected. To avoid it, mask `getty@.service` (or all of `getty.target`) in the rootfs overlay. Don't delete the link on the device: `/etc` is an overlay, and the next flash brings it back.
+The link carries the image's `SOURCE_DATE_EPOCH` timestamp (`Jan 1 00:00`) and lives in `rootfs-work`, which only exists during the image build, so it's not in the rootfs sysroot you'd normally inspect. Any template unit with a preset and `DefaultInstance=` is affected. On an older CLI, mask `getty@.service` (or all of `getty.target`) in the rootfs overlay. After upgrading to 1.0.0 you can drop that mask, and the next `avocado install` removes it from the sysroot. Don't delete the link on the device: `/etc` is an overlay, and the next flash brings it back.
 
 ## Clock
 

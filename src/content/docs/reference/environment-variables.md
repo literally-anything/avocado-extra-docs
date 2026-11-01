@@ -4,7 +4,7 @@ description: Every environment variable the avocado CLI reads, every variable it
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (every `env::var(...)` read, `src/utils/container.rs`, and the script launchers in `src/commands/`), avocadoctl `0.12.0`.
+avocado-cli `1.0.0-rc.5` (every `env::var(...)` read, `src/utils/container.rs`, and the script launchers in `src/commands/`), avocadoctl `0.12.0`. Rechecked against avocado-cli `1.0.0` (`343c137`) on 2026-11-01: every `env::var` read diffed against rc.5, plus `src_mount_uid_gid` in `src/utils/container.rs` and `render_kernel_image_section` in `src/commands/runtime/build.rs`.
 :::
 
 There are three different sets of variables, read in three different places. Mixing them up is a common source of "it's set, but nothing happened":
@@ -41,11 +41,12 @@ Flags beat environment variables, and environment variables beat `avocado.yaml`.
 |---|---|
 | `AVOCADO_PARALLEL_TASKS` | Number of concurrent tasks. Default `min(cpus, 4)`, and 1 under `--runs-on`. |
 | `AVOCADO_CONTAINER_TOOL` | Container runtime. Default `docker`. |
-| `AVOCADO_NO_SESSION_CONTAINER` | Run every step in its own `docker run` instead of reusing one session container. An escape hatch for debugging. |
-| `AVOCADO_HOST_UID`, `AVOCADO_HOST_GID` | Override `sdk.host_uid` and `sdk.host_gid` |
+| `AVOCADO_NO_SESSION_CONTAINER` | Run every step in its own `docker run` instead of reusing one session container. An escape hatch for debugging. Since `1.0.0`, the SDK install phase never reuses a container anyway, so a cold `avocado install` no longer needs this. |
+| `AVOCADO_HOST_UID`, `AVOCADO_HOST_GID` | The host UID and GID that bindfs maps to root on `/opt/src` in the container. Default: your own. (`sdk.host_uid` and `sdk.host_gid` are never read; [details](../config-schema/#sdk).) Under the avocado-vm, `1.0.0` skips bindfs and uses a plain mount; setting `AVOCADO_HOST_UID` brings bindfs back. `AVOCADO_HOST_GID` alone doesn't. |
 | `SOURCE_DATE_EPOCH` | Timestamp used by `avocado sbom` |
 | `KAB_KEYSET_FILE` | kabtool keyset used when wrapping images. **An empty value is an error**, not "unset". |
-| `AVOCADO_UPLOAD_NO_SBOM=1` | `avocado connect upload` skips generating the SBOM |
+| `AVOCADO_UPLOAD_NO_SBOM=1` | **Removed in `1.0.0`.** Use `avocado connect upload --no-sbom`. On rc.5 it skipped generating the SBOM. |
+| `GIT_CONFIG_PARAMETERS` | Since `1.0.0`, merged with the git settings the CLI passes into the SDK container, instead of replacing them. The same applies to one passed in `sdk.container_args`, in any `-e`/`--env` form. |
 
 ### Output and interaction
 
@@ -109,6 +110,7 @@ Each kind of script also gets these:
 | `extensions.<e>.post_build` | `AVOCADO_EXT_NAME`, `AVOCADO_TARGET`, `AVOCADO_BUILD_EXT_SYSROOT` |
 | `runtimes.<r>.post_build` | `AVOCADO_RUNTIME_NAME`, `AVOCADO_TARGET`, `AVOCADO_RUNTIME_BUILD_DIR` |
 | `kernel.install` | `AVOCADO_RUNTIME_BUILD_DIR`, `AVOCADO_BUILD_DIR` |
+| The runtime build script of `avocado build`, including the platform build hook it runs | `AVOCADO_KERNEL_IMAGE` and, since `1.0.0`, `AVOCADO_KERNEL_VERSION`: the kernel the lock pins for the rootfs, from `$AVOCADO_PREFIX/kernel/<version>/Image`. On rc.5 it was whichever staged kernel sorted first. The build fails if the pinned kernel isn't staged while others are, or if nothing is pinned and several are staged. |
 | `rootfs.post_install` / `initramfs.post_install` | `ROOTFS_WORK` / `INITRAMFS_WORK`, `ROOTFS_SYSROOT`, `AVOCADO_PREFIX`, `AVOCADO_SDK_PREFIX`, `RUNTIME_NAME`, `RUNTIME_VERSION`, `TARGET_ARCH` |
 
 :::tip

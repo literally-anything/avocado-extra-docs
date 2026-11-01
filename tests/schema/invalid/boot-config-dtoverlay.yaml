@@ -1,0 +1,6 @@
+# expect: boot_config
+extensions:
+  board-settings:
+    version: "1.0.0"
+    boot_config:
+      - dtoverlay=disable-bt

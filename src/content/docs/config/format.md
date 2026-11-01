@@ -4,7 +4,7 @@ description: The load pipeline for avocado.yaml, including composition, templati
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/utils/config.rs`: `merge_external_config`, the named-or-single deserializers; `src/utils/interpolation/`; `src/utils/version.rs`; `ext/install.rs`; `ext/build.rs`).
+avocado-cli `1.0.0-rc.5` (`src/utils/config.rs`: `merge_external_config`, the named-or-single deserializers; `src/utils/interpolation/`; `src/utils/version.rs`; `ext/install.rs`; `ext/build.rs`). The unknown-key and `cli_requirement` sections rechecked against `1.0.0` (`343c137`: `src/utils/config_lint.rs`, `src/commands/config_validate.rs`, `requirement_matches` in `src/utils/version.rs`) on 2026-11-01.
 :::
 
 ## The load pipeline
@@ -21,9 +21,9 @@ Every command that reads `avocado.yaml` (or whatever `-C/--config` points at) ru
 4. **Type-check** the sections that have a fixed shape: `distro`, `sdk`, `kernel`, `rootfs`, `initramfs`, `permissions`, `runtimes.<name>`, `signing_keys`, `connect`, `repos`.
 5. The `extensions` section, and some runtime keys, are **not** type-checked. Each command reads the keys it cares about straight from the YAML when it needs them.
 
-## Unknown keys are silently ignored
+## Unknown keys are warned about, not rejected
 
-Nothing in the CLI rejects, or even warns about, a key it doesn't recognize. This applies at every level. A typo quietly does nothing:
+The CLI doesn't reject a key it doesn't recognize, at any level. A typo does nothing:
 
 ```yaml
 runtimes:
@@ -37,11 +37,13 @@ extensions:
 
 In the first case, `{{ avocado.target.board }}` then falls back to the target name, so a Jetson build of `dev-local` would pull `avocado-bsp-jetson-orin-nano-devkit` rather than `avocado-bsp-qemuarm64`.
 
+Up to `1.0.0-rc.5`, nothing warned about this either. Since `1.0.0`, every load compares your own `avocado.yaml` with the CLI's schema and prints a warning on stderr for each key it ignores, with a "did you mean" when one is close (`utils/config_lint.rs`). The warnings never fail a command, and they're printed once per file per command. `avocado config validate` lists them without building ([details](../json-schema/#start-with-the-clis-own-checks-100-and-later)).
+
 The only places that do reject unknown keys:
 - The `version: { file, key, format }` block on extensions.
 - Mixing the two forms of a named-or-single section (below).
 
-To catch typos, validate with the [JSON Schema](../json-schema/) published by this site. It's stricter than the CLI on purpose.
+To catch typos, read the warnings, run `avocado config validate`, or validate with the [JSON Schema](../json-schema/) published by this site, which is stricter than the CLI on purpose.
 
 ## Named-or-single sections
 
@@ -115,3 +117,5 @@ Package **keys** are also where `{{ avocado.kernel.version }}` is substituted. S
 `cli_requirement: ">=0.41.0"` is a semver requirement, checked on every load. A running CLI that doesn't satisfy it refuses to run.
 
 Pre-releases get special treatment. The CLI first tries its exact version (so `=1.0.0-rc.1` can pin a release candidate), then tries again with the pre-release tag stripped. So `1.0.0-rc.5` **satisfies** `>=1.0.0`, even though strict semver says it shouldn't.
+
+Since `1.0.0`, the second try is skipped when the requirement has an exact pin with all three numbers. `=1.0.0` no longer accepts `1.0.0-rc.5`, even inside a compound requirement such as `>=0.25, =1.0.0`. A partial pin is still a range: `=1.0` accepts `1.0.0-rc.5`.

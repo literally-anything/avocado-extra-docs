@@ -4,7 +4,7 @@ description: How extension settings become lines in an extension-release file, a
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/commands/ext/build.rs`), avocadoctl `0.12.0` (`src/commands/ext.rs`: `run_avocado_on_merge_commands`, `execute_single_command`, `process_post_merge_tasks_for_extensions`), and the 2024/edge rootfs units (systemd 258). The D-Bus behaviour was seen on a `jetson-orin-nano-devkit`.
+avocado-cli `1.0.0-rc.5` (`src/commands/ext/build.rs`), avocadoctl `0.12.0` (`src/commands/ext.rs`: `run_avocado_on_merge_commands`, `execute_single_command`, `process_post_merge_tasks_for_extensions`), and the 2024/edge rootfs units (systemd 258). The D-Bus behaviour was seen on a `jetson-orin-nano-devkit`. `modprobe:` lines were rechecked against avocado-cli `1.0.0` (`343c137`, `create_sysext_build_script` in `src/commands/ext/build.rs`) on 2026-11-01.
 :::
 
 ## Config becomes release-file lines
@@ -35,7 +35,7 @@ AVOCADO_ENABLE_SERVICES="usb-gadget.service"
 |---|---|
 | `scopes`, `sysext_scopes`, `confext_scopes` | `SYSEXT_SCOPE=...`, `CONFEXT_SCOPE=...` (default `system`) |
 | `reload_service_manager: true` | `EXTENSION_RELOAD_MANAGER=1` (default `0`) |
-| `modprobe: [m]` | `AVOCADO_ON_MERGE="modprobe m"` |
+| `modprobe: [m]` | `AVOCADO_ON_MERGE="modprobe m"`, in the sysext's release file only, so the extension needs `sysext` in `types`. On `1.0.0-rc.5` and earlier, only when the extension itself contains a `*.ko*` file; otherwise the list was dropped silently. |
 | `on_merge: [cmd]` | `AVOCADO_ON_MERGE="cmd"` |
 | `on_unmerge: [cmd]` | `AVOCADO_ON_UNMERGE="cmd"` |
 | `enable_services: [u]` | `AVOCADO_ENABLE_SERVICES="u"`, plus a `*.wants/u` symlink in the confext |

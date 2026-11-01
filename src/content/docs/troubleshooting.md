@@ -4,7 +4,7 @@ description: Troubleshooting index for Avocado builds and devices, organized by 
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0`, 2024/edge on Jetson Orin, rechecked 2026-09-25. Every entry links to the page that explains it.
+avocado-cli `1.0.0-rc.5`, avocadoctl `0.12.0`, 2024/edge on Jetson Orin, rechecked 2026-09-25. Entries that avocado-cli `1.0.0` changes were rechecked against its source on 2026-11-01 and say so. Every entry links to the page that explains it.
 :::
 
 ## On the device
@@ -24,13 +24,13 @@ The console shows:
 
 ### Serial getty doesn't come up even after unmasking `getty.target`
 
-**Cause:** renaming or deleting an overlay file doesn't remove the copy already in the rootfs sysroot, so the old mask is still there.
-**Fix:** `avocado rootfs clean`, then rebuild. → [Build state](../build/stale-state/#overlays-add-and-overwrite-they-never-delete)
+**Cause:** on `1.0.0-rc.5` and earlier, renaming or deleting an overlay file doesn't remove the copy already in the rootfs sysroot, so the old mask is still there. `1.0.0` removes it, but only for files a `1.0.0` run recorded.
+**Fix:** `avocado rootfs clean`, then `avocado install` and `avocado build`. → [Build state](../build/stale-state/#overlays-and-enable_services-now-remove-what-you-drop)
 
 ### A service I removed from `enable_services` still starts
 
-**Cause:** the old `*.wants/` symlink is still in the extension sysroot.
-**Fix:** `avocado ext clean -r <rt> <ext>`, then rebuild. → [Build state](../build/stale-state/#enable_services-symlinks-are-never-removed)
+**Cause:** the old `*.wants/` symlink is still in the extension sysroot. `1.0.0` removes it on the next `ext build`, but only once a `1.0.0` build has recorded it.
+**Fix:** `avocado ext clean -r <rt> <ext>`, then rebuild. → [Build state](../build/stale-state/#overlays-and-enable_services-now-remove-what-you-drop)
 
 ### A `modules-load.d` or `sysctl.d` file in an extension has no effect
 
@@ -62,8 +62,8 @@ The console shows:
 ### `getty@getty.service` fails over and over
 
 The journal shows `getty.target: Wants dependency dropin …/getty.target.wants/getty@.service … has different name`.
-**Cause:** the image build's offline `systemctl` linked the bare template instead of `getty@tty1.service`.
-**Fix:** mask `getty@.service` or `getty.target` in the rootfs overlay. → [Getty units from presets](../hardware/jetson-orin/#getty-units-from-presets)
+**Cause:** the image build's offline `systemctl` linked the bare template instead of `getty@tty1.service`. Fixed in avocado-cli `1.0.0`.
+**Fix:** upgrade to `1.0.0` and rebuild. On older CLIs, mask `getty@.service` or `getty.target` in the rootfs overlay. → [Getty units from presets](../hardware/jetson-orin/#getty-units-from-presets)
 
 ### The clock jumps back to 1970 a few seconds into boot
 
@@ -106,15 +106,15 @@ The journal shows `getty.target: Wants dependency dropin …/getty.target.wants/
 
 ### An extension image is only 4 KB, or much smaller than it should be
 
-**Cause:** the image was built from an unpopulated sysroot, then reused, because its inputs never changed ([avocado-cli#283](https://github.com/avocado-linux/avocado-cli/issues/283)).
+**Cause:** the image was built from an unpopulated sysroot, then reused, because its inputs never changed ([avocado-cli#283](https://github.com/avocado-linux/avocado-cli/issues/283)). On `1.0.0`, `ext build` refuses an extension that declares packages when its sysroot has no package database, so this usually shows up as that error instead.
 **Fix:** clean that extension and rebuild. Check with `scripts/check-avocado-build.sh`. → [Build state](../build/stale-state/#up-to-date-checks-trust-inputs-not-outputs)
 
 ### My change to `avocado.yaml` did nothing
 
 Check these, most likely first:
-1. **A typo in a key.** Unknown keys are ignored silently. → [Format](../config/format/#unknown-keys-are-silently-ignored)
+1. **A typo in a key.** Unknown keys are ignored. `1.0.0` prints a warning on stderr; older CLIs say nothing. Run `avocado config validate`. → [Format](../config/format/#unknown-keys-are-warned-about-not-rejected)
 2. **A `target-`/`kernel-` override that never matches.** Non-matching overrides are dropped silently. → [Overrides](../config/overrides/)
-3. **A removal.** Removals don't reach the sysroot. → [Build state](../build/stale-state/)
+3. **A removal.** Removed packages stay in the sysroot; on CLIs before `1.0.0`, so do removed overlay files and `enable_services` entries. → [Build state](../build/stale-state/)
 4. **A runtime-dependent template, built with `-r`.** Templating ignores `-r`. → [Templating](../config/templating/#avocado-computed-values)
 
 ### A literal `{{ ... }}` shows up in a built file or a value
@@ -154,7 +154,7 @@ Check these, most likely first:
 
 ### A runtime's build fails in an extension it doesn't use, after an `avocado install`
 
-**Cause:** two runtimes share a target. The plain `install` left the shared extension sysroot symlink pointing at the other runtime.
+**Cause:** two runtimes share a target. On `1.0.0-rc.5`, the plain `install` left the shared extension sysroot symlink pointing at the other runtime. `1.0.0` seeds every runtime's sysroots on a plain `install`, but a targeted `ext install` drops the per-runtime copies, and `build -r` then says `Run 'avocado install -r <rt>' first`.
 **Fix:** `avocado install -r <runtime>`, then rebuild. Give each runtime its own `target:`. → [Build state](../build/stale-state/#two-extension-sysroot-locations)
 
 ### I edited a C file and the build said "up to date"
@@ -164,7 +164,7 @@ Check these, most likely first:
 
 ### A git-sourced extension builds the wrong version
 
-**Cause:** `ref` was a commit hash or a mistyped tag, so the fetch silently fell back to the default branch. → [Board variants](../hardware/jetson-carrier-boards/#board-variants)
+**Cause:** on `1.0.0-rc.5` and earlier, `ref` was a commit hash or a mistyped tag, so the fetch silently fell back to the default branch. `1.0.0` fetches the ref directly and fails if it doesn't exist. A branch `ref` still builds whatever the branch points at today. → [Board variants](../hardware/jetson-carrier-boards/#board-variants)
 
 ### SDK tools fail with `cannot execute: required file not found`
 

@@ -4,7 +4,7 @@ description: How to name kernel module packages so they always match the shipped
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`src/utils/kernel_resolver.rs`, `src/utils/kernel_version.rs`, `src/commands/ext/install.rs`), meta-avocado `scarthgap` (`avocado-kernel-builtin-provides.bbclass`), avocadoctl `0.12.0`.
+avocado-cli `1.0.0-rc.5` (`src/utils/kernel_resolver.rs`, `src/utils/kernel_version.rs`, `src/commands/ext/install.rs`), meta-avocado `scarthgap` (`avocado-kernel-builtin-provides.bbclass`), avocadoctl `0.12.0`. `modprobe:` lines were rechecked against avocado-cli `1.0.0` (`343c137`, `create_sysext_build_script` in `src/commands/ext/build.rs`) on 2026-11-01.
 :::
 
 ## Use the kernel-version template
@@ -53,7 +53,7 @@ When the kernel pin changes (after `avocado unlock` or `avocado update`, for exa
 ## On the device
 
 - When an extension contains any `*.ko`, `*.ko.xz` or `*.ko.gz` file, the build automatically adds `AVOCADO_ON_MERGE="depmod"` to its release file. `avocadoctl` runs `depmod` after every merge, so modules shipped in extensions can be found by `modprobe`.
-- `modprobe: [foo]` in an extension becomes `AVOCADO_ON_MERGE="modprobe foo"`. It runs on every merge, after `depmod` **and after `systemctl daemon-reload`**, with the other `on_merge` commands ([details](../../device/on-merge/#how-on_merge-commands-run)). **If it fails, you only get a warning.** A service that needs the module should load it too, and fail clearly if it can't.
+- `modprobe: [foo]` in an extension becomes `AVOCADO_ON_MERGE="modprobe foo"` in its sysext release file. Up to `1.0.0-rc.5`, that line was only written when the extension itself shipped a `*.ko*` file, so a `modprobe:` for a module from the rootfs kernel or another extension was dropped without a warning. `1.0.0` always writes it. It runs on every merge, after `depmod` **and after `systemctl daemon-reload`**, with the other `on_merge` commands ([details](../../device/on-merge/#how-on_merge-commands-run)). **If it fails, you only get a warning.** A service that needs the module should load it too, and fail clearly if it can't.
 - A module with no hardware alias (`libcomposite`, for example) is never loaded by udev, so something has to load it explicitly. Check with `modinfo -F alias <m>`.
 - Kernel code that asks for a module at runtime (for example configfs creating `functions/ncm.usb0`, which loads `usb_f_ncm`) finds extension modules too, because `depmod` has already run.
 - **`modules-load.d` files inside extensions don't work at boot.** `systemd-modules-load` runs before extensions merge, and nothing re-runs it. Use `modprobe:` instead. See [Boot and extension merge](../../device/boot-and-merge/).

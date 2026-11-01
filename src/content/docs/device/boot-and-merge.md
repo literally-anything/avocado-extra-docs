@@ -4,7 +4,7 @@ description: When Avocado merges extensions during boot, what has already run by
 ---
 
 :::note[Verified against]
-avocadoctl `0.12.0` (`fa81278`, `process_post_merge_tasks_for_extensions`) and its systemd units in meta-avocado `scarthgap` at `16e6328` (`recipes-avocado/avocadoctl/`), avocado-cli `1.0.0-rc.5` (`ext/build.rs`), the 2024/edge rootfs (systemd 258) on `jetson-orin-nano-devkit`. The networkd, getty and D-Bus behaviour below was seen on that device.
+avocadoctl `0.12.0` (`fa81278`, `process_post_merge_tasks_for_extensions`) and its systemd units in meta-avocado `scarthgap` at `16e6328` (`recipes-avocado/avocadoctl/`), avocado-cli `1.0.0-rc.5` (`ext/build.rs`), the 2024/edge rootfs (systemd 258) on `jetson-orin-nano-devkit`. The networkd, getty and D-Bus behaviour below was seen on that device. The `AVOCADO_MODPROBE` note was rechecked against avocado-cli `1.0.0` (`343c137`) on 2026-11-01.
 :::
 
 ## The sequence
@@ -15,7 +15,7 @@ Avocado turns off stock `systemd-sysext` and `systemd-confext` (a preset file di
 2. **In the real root**, `systemd` starts. Its generators have already run, and several early services have **no ordering against the merge**, so in practice they usually run before it. These include `systemd-modules-load`, `systemd-sysctl`, udev coldplug (`systemd-udev-trigger`) and, unless you order it otherwise, `systemd-networkd`. None of them is re-run afterwards. The merge unit *is* ordered before `systemd-tmpfiles-setup` and `systemd-userdb-load-credentials`, so those two see extension files.
 3. `avocado-extension.service` (`After=local-fs.target`, `Before=sysinit.target`) runs `avocadoctl refresh`. That unmerges and re-merges every enabled extension, then runs post-merge tasks in this order:
    1. `depmod` and `ldconfig`, if any extension asked for them
-   2. Modules listed in `AVOCADO_MODPROBE=` release-file lines. **avocado-cli `1.0.0-rc.5` never writes these**, so this step does nothing for extensions it builds.
+   2. Modules listed in `AVOCADO_MODPROBE=` release-file lines. **avocado-cli never writes these** (`1.0.0-rc.5` or `1.0.0`), so this step does nothing for extensions it builds.
    3. `systemctl daemon-reload`
    4. Every other `AVOCADO_ON_MERGE` command. The extension `modprobe:` key lands here, because the CLI writes it as `AVOCADO_ON_MERGE="modprobe <m>"`. So your modules load **after** the reload, not before it.
 
@@ -77,7 +77,7 @@ See 'systemctl status avocado-extension.service' for details.
 
 The case seen in practice: an empty BSP extension image ([avocado-cli#283](https://github.com/avocado-linux/avocado-cli/issues/283)) left out `nvbootctrl`, while the BSP's `on_merge` still ran `nvbootctrl verify`. Earlier in the log, `loop0: detected capacity change from 0 to 8` gives it away: that's an 8-sector, 4 KB extension image.
 
-**Keep one way in that doesn't depend on extensions.** For dev builds, that's the rootfs's own serial getty. The rootfs is shared by every runtime, though, so a product that masks `getty.target` in the rootfs (see [Masks in extensions](#masks-in-extensions)) loses it in dev too. In that case, add `systemd.wants=serial-getty@<port>.service` or `systemd.debug_shell=<port>` (a root shell, no login) to the **dev** runtime's `kernel.cmdline_extra`. The command line is per runtime and doesn't depend on the merge. Both options come from systemd's debug generator; neither has been tested on an Avocado device yet. If you unmask something in the rootfs overlay later, clean the rootfs; see [Build state](../../build/stale-state/#overlays-add-and-overwrite-they-never-delete).
+**Keep one way in that doesn't depend on extensions.** For dev builds, that's the rootfs's own serial getty. The rootfs is shared by every runtime, though, so a product that masks `getty.target` in the rootfs (see [Masks in extensions](#masks-in-extensions)) loses it in dev too. In that case, add `systemd.wants=serial-getty@<port>.service` or `systemd.debug_shell=<port>` (a root shell, no login) to the **dev** runtime's `kernel.cmdline_extra`. The command line is per runtime and doesn't depend on the merge. Both options come from systemd's debug generator; neither has been tested on an Avocado device yet. If you unmask something in the rootfs overlay later, check the next `avocado install` prints `Removed /etc/systemd/system/<unit>` (avocado-cli `1.0.0`), or clean the rootfs on older CLIs; see [Build state](../../build/stale-state/#overlays-and-enable_services-now-remove-what-you-drop).
 
 On Jetson Orin the login console is `ttyTCU0` (the BSP enables `serial-getty@ttyTCU0`), even when kernel messages also go to `ttyAMA0`. A getty on the wrong port fails silently.
 

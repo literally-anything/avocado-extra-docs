@@ -1,0 +1,4 @@
+# expect: host_uid
+sdk:
+  image: docker.io/avocadolinux/sdk:2026
+  host_uid: 1000

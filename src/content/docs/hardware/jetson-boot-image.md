@@ -4,7 +4,7 @@ description: kernel.cmdline, kernel.cmdline_extra and the project's initramfs ar
 ---
 
 :::note[Verified against]
-avocado-cli `1.0.0-rc.5` (`2b46152`), meta-avocado `scarthgap` at `16e6328`, edk2-nvidia `r36.5`, 2024/edge on `jetson-orin-nano-devkit` snapshot 16 and `jetson-orin-nx` snapshot 17. Checked in `meta-avocado-nvidia/stone/tegra/stone-provision-tegraflash.sh` and the two targets' stone manifests, and against `/proc/cmdline` and the flashed `A_kernel`/`B_kernel` partitions on a devkit on 2026-09-25.
+avocado-cli `1.0.0-rc.5` (`2b46152`), meta-avocado `scarthgap` at `16e6328`, edk2-nvidia `r36.5`, 2024/edge on `jetson-orin-nano-devkit` snapshot 16 and `jetson-orin-nx` snapshot 17. Checked in `meta-avocado-nvidia/stone/tegra/stone-provision-tegraflash.sh` and the two targets' stone manifests, and against `/proc/cmdline` and the flashed `A_kernel`/`B_kernel` partitions on a devkit on 2026-09-25. The avocado-cli `1.0.0` notes below come from its source (`343c137`: `commands/runtime/build.rs`, `utils/device_tree_overlay.rs`), not from a `1.0.0` Jetson build. Upstream status checked on 2026-11-01.
 :::
 
 Set `kernel.cmdline_extra` on a Jetson runtime and the build succeeds, `avocado deploy` and `avocado provision` both succeed, and the setting is nowhere on the device. The same is true for every top-level `initramfs:` setting. Nothing warns you.
@@ -21,6 +21,8 @@ mkbootimg \
 ```
 
 which has no `--cmdline`, or copies the BSP's prebuilt `boot.img`, whose header command line is also empty. Nothing in the script reads the runtime's `kernel.cmdline` or `kernel.cmdline_extra`. avocado-cli `1.0.0-rc.5` accepts both keys — [`config-schema`](../../reference/config-schema/#kernel) type-checks them, and the CLI resolves `{{ avocado.kernel.version }}` alongside them — but the value appears nowhere in the build volume for these targets.
+
+avocado-cli `1.0.0` adds a route for `cmdline_extra`, but only on machines whose feed ships a `fit-image.its`: it writes the value into every FIT configuration node as `avocado,cmdline-extra` for U-Boot to append. That doesn't touch the `boot.img` path described here. `1.0.0` also warns when `kernel.cmdline` or `cmdline_extra` is set and the board's `boot-settings.json` doesn't list `kernel_args`, but that file comes with the device-tree overlay hook package, which isn't in a Jetson feed ([meta-avocado#421](https://github.com/avocado-linux/meta-avocado/issues/421)), so on Jetson there's no warning either.
 
 Putting your own line in the kernel DTB's `/chosen/bootargs` doesn't help either. NVIDIA's UEFI (edk2-nvidia `r36.5`) builds the final command line from the `boot.img` header, then appends the `KernelCommandLine` UEFI variable and platform arguments, overwriting `/chosen/bootargs`. `TegraPlatformBootManagerDxe.c` only reads the DTB's own `bootargs` when `PcdBootAndroidImage` is set, and that PCD is `FALSE` by default for `jetson-orin-nano-devkit` and `jetson-orin-nx` (it's only `TRUE` for `TegraVirt`). So `boot.img`'s header is the only place a command line can come from, and nothing writes one there.
 
@@ -69,4 +71,10 @@ There's no equivalent workaround for the initramfs: nothing on the device reads 
 
 ## Filing status
 
-Not filed upstream as this specific gap (an ignored `kernel.cmdline_extra`/`initramfs:`). There is related, in-progress upstream work: [meta-avocado#391](https://github.com/avocado-linux/meta-avocado/pull/391) (open) starts repacking the Orin boot.img's command line at provision time, but only to append two `avocado.root_partuuid`/`_b` values for rootfs-slot discovery — it explicitly does not carry forward arbitrary arguments, after an earlier revision that tried to hung a board on hardware. [meta-avocado#398](https://github.com/avocado-linux/meta-avocado/issues/398) is the hardware debugging behind that decision: carrying the machine's own `KERNEL_ARGS` forward moved `/dev/console` to a disabled framebuffer console (`console=tty0` after `console=ttyTCU0,...`), which looked like a silent hang but wasn't. Neither PR touches `avocado.yaml`'s `kernel.cmdline`/`cmdline_extra` or the project's `initramfs:`, so this page's gap stands even once #391 merges. See [Known upstream issues](../../reference/known-issues/) for the related, already-tracked gap that `avocado deploy` never carries the kernel or kernel DTB at all.
+As of 2026-11-01, from the trackers only (none of these changes has been built or flashed for this page):
+
+- **`kernel.cmdline` and `cmdline_extra`:** fixed on `wrynose` by [meta-avocado#443](https://github.com/avocado-linux/meta-avocado/pull/443) (merged 2026-10-08), and proposed for `scarthgap` in [meta-avocado#574](https://github.com/avocado-linux/meta-avocado/pull/574) (open). Both have the provision-time `boot.img` repack read the `AVOCADO_KERNEL_CMDLINE`/`AVOCADO_KERNEL_CMDLINE_EXTRA` values the CLI exports: `cmdline` replaces the header's line and `cmdline_extra` is appended. That's provisioning only. `avocado deploy` still never writes the kernel partitions ([meta-avocado#422](https://github.com/avocado-linux/meta-avocado/issues/422)).
+- **The BSP's own arguments:** [meta-avocado#391](https://github.com/avocado-linux/meta-avocado/pull/391) (merged 2026-10-06) repacks the Orin `boot.img` at provision time to add two `avocado.root_partuuid`/`_b` values for rootfs-slot discovery, and [meta-avocado#403](https://github.com/avocado-linux/meta-avocado/pull/403) (merged) carries the machine's `KERNEL_ARGS` into that repack, after restating the serial console last. [meta-avocado#398](https://github.com/avocado-linux/meta-avocado/issues/398), which #403 fixes, explains why: with `console=tty0` last, `/dev/console` went to a disabled framebuffer, which looked like a hang.
+- **The project's `initramfs:`:** no upstream work found. This part of the gap stands.
+
+See [Known upstream issues](../../reference/known-issues/) for the related gap that `avocado deploy` never carries the kernel or kernel DTB at all.

@@ -1,0 +1,13 @@
+# avocado-cli 1.0.0: boot_config lines and a stock overlay with no src.
+extensions:
+  board-settings:
+    version: "1.0.0"
+    types: [confext]
+    device_tree_overlays:
+      - name: disable-bt
+      - name: my-carrier
+        src: dts/my-carrier.dts
+        params: { speed: 400000 }
+    boot_config:
+      - dtparam=i2c_arm=on
+      - usb_max_current_enable=1
